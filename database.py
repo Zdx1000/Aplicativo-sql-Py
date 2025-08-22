@@ -30,9 +30,7 @@ from sqlalchemy import event
 
 from passlib.context import CryptContext
 
-# Dica para empacotamento (PyInstaller/auto-py-to-exe):
-# Alguns empacotadores não detectam o handler de bcrypt do passlib por ser importado dinamicamente.
-# Este import "isca" garante que o módulo seja incluído no bundle.
+
 try:  # pragma: no cover
     import passlib.handlers.bcrypt  # noqa: F401
 except Exception:
@@ -40,18 +38,20 @@ except Exception:
 
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///dados.db")
-# Caminho opcional para espelhar o arquivo SQLite após cada commit (backup online)
-# Ex.: SQLITE_MIRROR_PATH=\\\\fs010J\\grpctlest$\\PASTA GERAL CE\\DANYLLO\\Controle de Epi\\dados.db
+
+
 SQLITE_MIRROR_PATH = os.getenv(
     "SQLITE_MIRROR_PATH",
     r"\\fs010J\grpctlest$\05ª Analise CI\backup dados\dados.db",
 )
-# Chave de registro para usuários do tipo USUARIO (mantém compatibilidade com REGISTRO_API_KEY legado)
+
+
 REGISTRO_API_KEY_USUARIO = os.getenv(
     "REGISTRO_API_KEY_USUARIO",
     os.getenv("REGISTRO_API_KEY", "u_d7Jc9LwQ1rT6yP3vN8bF4mZ2sX5aG7hK0qR9tU2eW6yD8pC3vB1"),
 )
-# Chave exclusiva para criação de contas ADMINISTRADOR (mantém fallback para variável antiga *_ADM)
+
+
 REGISTRO_API_KEY_ADMINISTRADOR = os.getenv(
     "REGISTRO_API_KEY_ADMINISTRADOR",
     os.getenv("REGISTRO_API_KEY_ADM", "a_P9zX2cV7bN4mL8kJ3hG6fD1sA5qW0eR2tY8uI4oP7aX5sD9fL3"),
