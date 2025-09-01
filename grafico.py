@@ -66,13 +66,16 @@ class GraficoPage(QWidget):
         self.ed_data_fim.setCalendarPopup(True)
         self.ed_data_fim.setDate(hoje)
 
-        row_ini = QHBoxLayout()
-        row_ini.addWidget(self.ed_data_ini)
-        row_fim = QHBoxLayout()
-        row_fim.addWidget(self.ed_data_fim)
-
-        wrap_ini = QWidget(); wrap_ini.setLayout(row_ini)
-        wrap_fim = QWidget(); wrap_fim.setLayout(row_fim)
+        # Período (datas) lado a lado
+        row_periodo = QHBoxLayout()
+        row_periodo.setSpacing(8)
+        row_periodo.addWidget(QLabel("Data inicial:"))
+        row_periodo.addWidget(self.ed_data_ini)
+        row_periodo.addSpacing(16)
+        row_periodo.addWidget(QLabel("Data final:"))
+        row_periodo.addWidget(self.ed_data_fim)
+        row_periodo.addStretch(1)
+        wrap_periodo = QWidget(); wrap_periodo.setLayout(row_periodo)
 
         self.cb_agrup = QComboBox()
         self.cb_agrup.addItems(["Motivo", "Setor", "Usuário"])  # Dimensão (X)
@@ -97,11 +100,23 @@ class GraficoPage(QWidget):
         self.cb_tipo.addItems(["Pizza", "Donut", "Barras"])  # padrão: Pizza
         self.cb_tipo.currentIndexChanged.connect(self._on_update)
 
-        form.addRow("Data inicial:", wrap_ini)
-        form.addRow("Data final:", wrap_fim)
-        form.addRow("Agrupar por:", self.cb_agrup)
-        form.addRow("Métrica:", self.cb_metric)
-        form.addRow("Tipo de gráfico:", self.cb_tipo)
+        # Linha de opções (Agrupar/Métrica/Tipo) lado a lado
+        row_opts = QHBoxLayout()
+        row_opts.setSpacing(8)
+        row_opts.addWidget(QLabel("Agrupar por:"))
+        row_opts.addWidget(self.cb_agrup)
+        row_opts.addSpacing(16)
+        row_opts.addWidget(QLabel("Métrica:"))
+        row_opts.addWidget(self.cb_metric)
+        row_opts.addSpacing(16)
+        row_opts.addWidget(QLabel("Tipo:"))
+        row_opts.addWidget(self.cb_tipo)
+        row_opts.addStretch(1)
+        wrap_opts = QWidget(); wrap_opts.setLayout(row_opts)
+
+        # Adiciona ao formulário como duas linhas: Período e Opções
+        form.addRow("Período:", wrap_periodo)
+        form.addRow("Opções:", wrap_opts)
 
         top_actions = QHBoxLayout()
         top_actions.addStretch(1)
@@ -246,6 +261,9 @@ class GraficoPage(QWidget):
         # Limpa séries antigas
         for s in list(self.chart.series()):
             self.chart.removeSeries(s)
+        # Remove eixos que possam ter sobrado do gráfico de barras
+        for ax in list(self.chart.axes()):
+            self.chart.removeAxis(ax)
 
         series = QPieSeries()
         # Donut: define furo interno
@@ -315,7 +333,15 @@ class GraficoPage(QWidget):
         agrup = getattr(self, "_last_agrup", "Dimensão")
         metric = getattr(self, "_last_metric", "Métrica")
         self.chart.setTitle(f"{metric} por {agrup}")
-        self.chart.legend().setVisible(False)
+        # Mantém a legenda visível e à direita para seguir o padrão dos demais
+        self.chart.legend().setVisible(True)
+        self.chart.legend().setAlignment(Qt.AlignRight)
+        # Não adicionar fundo especial no modo barras (deixa padrão do Qt)
+        try:
+            self.chart.setBackgroundVisible(False)
+            self.chart.setPlotAreaBackgroundVisible(False)
+        except Exception:
+            pass
 
     # ---------------- Tema do gráfico ---------------- #
     def aplicar_tema(self, modo: str) -> None:
@@ -338,12 +364,10 @@ class GraficoPage(QWidget):
         plot_bg = QColor(40, 44, 52) if escuro else QColor(255, 255, 255)
         fg = QColor(255, 255, 255) if escuro else QColor(10, 10, 10)
 
-        # Fundo do chart e área de plotagem
+        # Fundo do chart e área de plotagem (padronizado: nenhum fundo customizado)
         try:
-            self.chart.setBackgroundVisible(True)
-            self.chart.setBackgroundBrush(QBrush(bg))
-            self.chart.setPlotAreaBackgroundVisible(True)
-            self.chart.setPlotAreaBackgroundBrush(QBrush(plot_bg))
+            self.chart.setBackgroundVisible(False)
+            self.chart.setPlotAreaBackgroundVisible(False)
         except Exception:
             pass
         # Título e legenda
