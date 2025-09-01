@@ -79,6 +79,7 @@ class GraficoPage(QWidget):
 
         self.cb_agrup = QComboBox()
         self.cb_agrup.addItems(["Motivo", "Setor", "Usuário"])  # Dimensão (X)
+        self.cb_agrup.currentIndexChanged.connect(self._on_update)
 
         # Métrica (Y)
         self.cb_metric = QComboBox()
@@ -91,6 +92,7 @@ class GraficoPage(QWidget):
             "Contagem Única de Motivo",
             "Contagem Única de Setor",
         ])
+        self.cb_metric.currentIndexChanged.connect(self._on_update)
 
         self.btn_atualizar = QPushButton("Atualizar")
         self.btn_atualizar.clicked.connect(self._on_update)
@@ -100,9 +102,17 @@ class GraficoPage(QWidget):
         self.cb_tipo.addItems(["Pizza", "Donut", "Barras"])  # padrão: Pizza
         self.cb_tipo.currentIndexChanged.connect(self._on_update)
 
+        # Fonte de dados
+        self.cb_fonte = QComboBox()
+        self.cb_fonte.addItems(["Bloqueado", "Almoxafire", "Consolidado", "EPI Itens", "Monitoramento"])
+        self.cb_fonte.currentIndexChanged.connect(self._on_fonte_changed)
+
         # Linha de opções (Agrupar/Métrica/Tipo) lado a lado
         row_opts = QHBoxLayout()
         row_opts.setSpacing(8)
+        row_opts.addWidget(QLabel("Fonte:"))
+        row_opts.addWidget(self.cb_fonte)
+        row_opts.addSpacing(16)
         row_opts.addWidget(QLabel("Agrupar por:"))
         row_opts.addWidget(self.cb_agrup)
         row_opts.addSpacing(16)
@@ -153,7 +163,7 @@ class GraficoPage(QWidget):
         lay.addWidget(self.lab_status)
 
         # Carrega inicial
-        self._on_update()
+        self._on_fonte_changed()  # configura opções conforme fonte e carrega
 
     # ---------------- Lógica ---------------- #
     def _on_update(self) -> None:
@@ -162,69 +172,129 @@ class GraficoPage(QWidget):
             return
         data_ini = self.ed_data_ini.date().toString("yyyy-MM-dd")
         data_fim = self.ed_data_fim.date().toString("yyyy-MM-dd")
+        fonte = self.cb_fonte.currentText() if hasattr(self, "cb_fonte") else "Bloqueado"
         agrup = self.cb_agrup.currentText()
         metric = self.cb_metric.currentText()
         self._last_agrup = agrup
         self._last_metric = metric
 
+        # Busca e agrega conforme a fonte
+        regs = []
         try:
-            from database import consultar_registros_filtrados
-            regs = consultar_registros_filtrados(data_ini=data_ini, data_fim=data_fim, motivo_sub=None)
+            if fonte == "Bloqueado":
+                from database import consultar_registros_filtrados
+                regs = consultar_registros_filtrados(data_ini=data_ini, data_fim=data_fim, motivo_sub=None)
+            elif fonte == "Almoxafire":
+                from database import consultar_almoxafire
+                regs = consultar_almoxafire(data_ini=data_ini, data_fim=data_fim)
+            elif fonte == "Consolidado":
+                from database import consultar_consolidado_por_periodo
+                regs = consultar_consolidado_por_periodo(data_ini=data_ini, data_fim=data_fim)
+            elif fonte == "EPI Itens":
+                from database import consultar_epi_itens_por_periodo
+                regs = consultar_epi_itens_por_periodo(data_ini=data_ini, data_fim=data_fim)
+            elif fonte == "Monitoramento":
+                from database import consultar_monitoramento_por_periodo
+                regs = consultar_monitoramento_por_periodo(data_ini=data_ini, data_fim=data_fim)
         except Exception as exc:
             self.lab_status.setText(f"Erro ao consultar: {exc}")
             self._render_chart([])
             return
 
         # Agregar por agrup
-        chaves = {
-            "Motivo": "motivo",
-            "Setor": "setor_responsavel",
-            "Usuário": "usuario",
-        }
-        key = chaves.get(agrup, "motivo")
         valores: Dict[str, float] = {}
-        # Suporte a média: manter soma e contagem
-        somas: Dict[str, float] = {}
-        conts: Dict[str, int] = {}
-        # Suporte a contagem distinta
-        sets_distintos: Dict[str, set] = {}
-
-        unique_fields = {
-            "Contagem Única de Item": "item",
-            "Contagem Única de Usuário": "usuario",
-            "Contagem Única de Motivo": "motivo",
-            "Contagem Única de Setor": "setor_responsavel",
-        }
-
-        for r in regs or []:
-            cat = r.get(key) or "(vazio)"
-            if metric == "Soma de Quantidade":
+        if fonte == "Bloqueado":
+            chaves = {
+                "Motivo": "motivo",
+                "Setor": "setor_responsavel",
+                "Usuário": "usuario",
+            }
+            key = chaves.get(agrup, "motivo")
+            # Suporte a média: manter soma e contagem
+            somas: Dict[str, float] = {}
+            conts: Dict[str, int] = {}
+            sets_distintos: Dict[str, set] = {}
+            unique_fields = {
+                "Contagem Única de Item": "item",
+                "Contagem Única de Usuário": "usuario",
+                "Contagem Única de Motivo": "motivo",
+                "Contagem Única de Setor": "setor_responsavel",
+            }
+            for r in regs or []:
+                cat = r.get(key) or "(vazio)"
+                if metric == "Soma de Quantidade":
+                    try:
+                        q = float(int(r.get("quantidade", 0)))
+                    except Exception:
+                        q = 0.0
+                    valores[cat] = valores.get(cat, 0.0) + q
+                elif metric == "Média de Quantidade":
+                    try:
+                        q = float(int(r.get("quantidade", 0)))
+                    except Exception:
+                        q = 0.0
+                    somas[cat] = somas.get(cat, 0.0) + q
+                    conts[cat] = conts.get(cat, 0) + 1
+                elif metric == "Contagem de Registros":
+                    valores[cat] = valores.get(cat, 0.0) + 1.0
+                elif metric in unique_fields:
+                    fld = unique_fields[metric]
+                    sets = sets_distintos.setdefault(cat, set())
+                    sets.add(r.get(fld))
+            if metric == "Média de Quantidade":
+                for cat, soma_val in somas.items():
+                    c = conts.get(cat, 0)
+                    valores[cat] = (soma_val / c) if c else 0.0
+            elif metric in unique_fields:
+                for cat, s in sets_distintos.items():
+                    valores[cat] = float(len(s))
+        elif fonte == "Almoxafire":
+            key_map = {"Setor": "setor", "Turno": "turno", "Insumo": "insumo"}
+            key = key_map.get(agrup, "setor")
+            for r in regs or []:
+                cat = r.get(key) or "(vazio)"
                 try:
                     q = float(int(r.get("quantidade", 0)))
                 except Exception:
                     q = 0.0
                 valores[cat] = valores.get(cat, 0.0) + q
-            elif metric == "Média de Quantidade":
+        elif fonte == "Consolidado":
+            # X = data_ref; Y = uma das colunas monetárias
+            metrica_para_campo = {
+                "R$ Bloq. Total": "R$ Bloq. Total",
+                "R$ Bloq. no ESTOQUE": "R$ Bloq. no ESTOQUE",
+                "R$ Bloq. em Negoc.": "R$ Bloq. em Negoc.",
+                "R$ Bloq. SALDO": "R$ Bloq. SALDO",
+                "R$ Estoque": "R$ Estoque",
+            }
+            campo = metrica_para_campo.get(metric, "R$ Bloq. Total")
+            for r in regs or []:
+                cat = r.get("data_ref") or "(sem data)"
+                val = r.get(campo)
+                try:
+                    if val is None or val == "":
+                        v = 0.0
+                    else:
+                        v = float(str(val).replace(".", "").replace(",", ".")) if "," in str(val) else float(val)
+                except Exception:
+                    v = 0.0
+                valores[cat] = valores.get(cat, 0.0) + v
+        elif fonte == "EPI Itens":
+            # X = produto; Y = quantidade
+            for r in regs or []:
+                cat = r.get("produto") or "(vazio)"
                 try:
                     q = float(int(r.get("quantidade", 0)))
                 except Exception:
                     q = 0.0
-                somas[cat] = somas.get(cat, 0.0) + q
-                conts[cat] = conts.get(cat, 0) + 1
-            elif metric == "Contagem de Registros":
+                valores[cat] = valores.get(cat, 0.0) + q
+        elif fonte == "Monitoramento":
+            # X = responsavel|setor|usuario; Y = contagem de containers (registros)
+            key_map = {"Responsável": "responsavel", "Setor": "setor", "Usuário": "usuario"}
+            key = key_map.get(agrup, "responsavel")
+            for r in regs or []:
+                cat = r.get(key) or "(vazio)"
                 valores[cat] = valores.get(cat, 0.0) + 1.0
-            elif metric in unique_fields:
-                fld = unique_fields[metric]
-                sets = sets_distintos.setdefault(cat, set())
-                sets.add(r.get(fld))
-
-        if metric == "Média de Quantidade":
-            for cat, soma_val in somas.items():
-                c = conts.get(cat, 0)
-                valores[cat] = (soma_val / c) if c else 0.0
-        elif metric in unique_fields:
-            for cat, s in sets_distintos.items():
-                valores[cat] = float(len(s))
 
         # Ordena por valor desc e limita a 15 fatias (resto = Outros)
         itens = sorted(valores.items(), key=lambda kv: kv[1], reverse=True)
@@ -237,7 +307,7 @@ class GraficoPage(QWidget):
         self._render_chart(itens)
         total = sum(v for _, v in itens)
         self.lab_status.setText(
-            f"{len(regs)} registro(s) no período. Total: {total:.2f} ({metric})."
+            f"{len(regs)} registro(s) no período. Total: {total:.2f} ({metric}) — Fonte: {fonte}."
         )
 
     def _render_chart(self, itens: List[tuple[str, float]]) -> None:
@@ -321,9 +391,15 @@ class GraficoPage(QWidget):
         except Exception:
             pass
         axis_y = QValueAxis()
-        axis_y.setLabelFormat("%i")
-        max_v = max(valores) if valores else 0.0
-        axis_y.setRange(0, max(1, int(max_v * 1.15)))
+        has_decimal = any(abs(v - int(v)) > 1e-6 for v in valores)
+        if has_decimal:
+            axis_y.setLabelFormat("%.2f")
+            max_v = max(valores) if valores else 0.0
+            axis_y.setRange(0.0, max(1.0, float(max_v) * 1.15))
+        else:
+            axis_y.setLabelFormat("%i")
+            max_v = max(valores) if valores else 0.0
+            axis_y.setRange(0, max(1, int(max_v * 1.15)))
 
         self.chart.addAxis(axis_x, Qt.AlignBottom)
         self.chart.addAxis(axis_y, Qt.AlignLeft)
@@ -407,3 +483,40 @@ class GraficoPage(QWidget):
                     ax.setGridLineColor(QColor(60, 64, 72) if escuro else QColor(220, 220, 220))
         except Exception:
             pass
+
+    # ---------------- Fonte (opções dinâmicas) ---------------- #
+    def _on_fonte_changed(self) -> None:
+        fonte = self.cb_fonte.currentText()
+        cfg = self._get_fonte_cfg(fonte)
+        # Reconfigura opções de agrupamento e métrica
+        try:
+            self.cb_agrup.blockSignals(True)
+            self.cb_metric.blockSignals(True)
+            self.cb_agrup.clear(); self.cb_agrup.addItems(cfg["agrup"])  # type: ignore[index]
+            self.cb_metric.clear(); self.cb_metric.addItems(cfg["metric"])  # type: ignore[index]
+        finally:
+            self.cb_agrup.blockSignals(False)
+            self.cb_metric.blockSignals(False)
+        self._on_update()
+
+    def _get_fonte_cfg(self, fonte: str) -> dict:
+        if fonte == "Almoxafire":
+            return {"agrup": ["Setor", "Turno", "Insumo"], "metric": ["Quantidade"]}
+        if fonte == "Consolidado":
+            return {"agrup": ["Data"], "metric": [
+                "R$ Bloq. Total", "R$ Bloq. no ESTOQUE", "R$ Bloq. em Negoc.", "R$ Bloq. SALDO", "R$ Estoque"
+            ]}
+        if fonte == "EPI Itens":
+            return {"agrup": ["Produto"], "metric": ["Quantidade"]}
+        if fonte == "Monitoramento":
+            return {"agrup": ["Responsável", "Setor", "Usuário"], "metric": ["Contagem de Containers"]}
+        # Padrão (Bloqueado)
+        return {"agrup": ["Motivo", "Setor", "Usuário"], "metric": [
+            "Soma de Quantidade",
+            "Média de Quantidade",
+            "Contagem de Registros",
+            "Contagem Única de Item",
+            "Contagem Única de Usuário",
+            "Contagem Única de Motivo",
+            "Contagem Única de Setor",
+        ]}

@@ -1202,6 +1202,90 @@ def listar_itens_de_epi(epi_id: int) -> List[dict]:
             })
         return out
 
+def consultar_epi_itens_por_periodo(*, data_ini: Optional[str] = None, data_fim: Optional[str] = None) -> List[dict]:
+    """Retorna itens de EPIs (EPIS_ITENS) filtrando pelo período de ``data_ref`` do cabeçalho (EPIS).
+
+    Cada item no retorno contém ao menos: produto, quantidade e data_ref do cabeçalho.
+    """
+    di = None
+    df = None
+    if data_ini:
+        try:
+            di = date.fromisoformat(data_ini)
+        except ValueError:
+            raise ValueError("data_ini inválida (use YYYY-MM-DD)")
+    if data_fim:
+        try:
+            df = date.fromisoformat(data_fim)
+        except ValueError:
+            raise ValueError("data_fim inválida (use YYYY-MM-DD)")
+    if di and df and di > df:
+        raise ValueError("Período inválido: data inicial maior que a final")
+    with get_session() as session:
+        q = (
+            session.query(EpiItemModel.produto, EpiItemModel.quantidade, EpiModel.data_ref)
+            .join(EpiModel, EpiItemModel.epi_id == EpiModel.id)
+        )
+        if di:
+            q = q.filter(EpiModel.data_ref >= di)
+        if df:
+            q = q.filter(EpiModel.data_ref <= df)
+        rows = q.order_by(EpiModel.data_ref.desc()).all()
+        out: List[dict] = []
+        for prod, qtd, dref in rows:
+            out.append({
+                "produto": prod,
+                "quantidade": int(qtd or 0),
+                "data_ref": dref.isoformat() if dref else None,
+            })
+        return out
+
+def consultar_monitoramento_por_periodo(*, data_ini: Optional[str] = None, data_fim: Optional[str] = None) -> List[dict]:
+    """Consulta MONITORAMENTO por ``created_at`` dentro do período informado (inclusivo)."""
+    from datetime import datetime as _dt
+    dt_ini = None
+    dt_fim = None
+    if data_ini:
+        try:
+            if len(data_ini) == 10:
+                dt = _dt.fromisoformat(data_ini)
+                dt_ini = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+            else:
+                dt_ini = _dt.fromisoformat(data_ini)
+        except ValueError:
+            raise ValueError("data_ini inválida (use YYYY-MM-DD)")
+    if data_fim:
+        try:
+            if len(data_fim) == 10:
+                dt = _dt.fromisoformat(data_fim)
+                dt_fim = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+            else:
+                dt_fim = _dt.fromisoformat(data_fim)
+        except ValueError:
+            raise ValueError("data_fim inválida (use YYYY-MM-DD)")
+    if dt_ini and dt_fim and dt_ini > dt_fim:
+        raise ValueError("Período inválido: data inicial maior que a final")
+    with get_session() as session:
+        q = session.query(MonitoramentoModel)
+        if dt_ini:
+            q = q.filter(MonitoramentoModel.created_at >= dt_ini)
+        if dt_fim:
+            q = q.filter(MonitoramentoModel.created_at <= dt_fim)
+        regs = q.order_by(MonitoramentoModel.created_at.desc()).all()
+        out: List[dict] = []
+        for r in regs:
+            out.append({
+                "id": r.id,
+                "onda": r.onda,
+                "carga": r.carga,
+                "container": r.container,
+                "responsavel": r.responsavel,
+                "setor": r.setor,
+                "usuario": r.usuario,
+                "created_at": r.created_at.isoformat(timespec="seconds"),
+            })
+        return out
+
 ## ---------------- Configurações API (EPIs) ---------------- ##
 
 def listar_configuracoes_api() -> list[dict]:
