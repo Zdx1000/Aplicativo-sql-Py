@@ -15,11 +15,19 @@ from PySide6.QtWidgets import (
     QDateEdit,
 )
 try:
-    from PySide6.QtCharts import QChart, QChartView, QPieSeries
+    from PySide6.QtCharts import (
+        QChart,
+        QChartView,
+        QPieSeries,
+        QBarSeries,
+        QBarSet,
+        QBarCategoryAxis,
+        QValueAxis,
+    )
     HAS_QTCHARTS = True
 except Exception:  # Fallback quando PySide6-Addons (QtCharts) não está instalado
     HAS_QTCHARTS = False
-    QChart = QChartView = QPieSeries = None  # type: ignore
+    QChart = QChartView = QPieSeries = QBarSeries = QBarSet = QBarCategoryAxis = QValueAxis = None  # type: ignore
 
 
 class GraficoPage(QWidget):
@@ -84,10 +92,16 @@ class GraficoPage(QWidget):
         self.btn_atualizar = QPushButton("Atualizar")
         self.btn_atualizar.clicked.connect(self._on_update)
 
+        # Tipo de gráfico
+        self.cb_tipo = QComboBox()
+        self.cb_tipo.addItems(["Pizza", "Donut", "Barras"])  # padrão: Pizza
+        self.cb_tipo.currentIndexChanged.connect(self._on_update)
+
         form.addRow("Data inicial:", wrap_ini)
         form.addRow("Data final:", wrap_fim)
         form.addRow("Agrupar por:", self.cb_agrup)
         form.addRow("Métrica:", self.cb_metric)
+        form.addRow("Tipo de gráfico:", self.cb_tipo)
 
         top_actions = QHBoxLayout()
         top_actions.addStretch(1)
@@ -143,7 +157,7 @@ class GraficoPage(QWidget):
             regs = consultar_registros_filtrados(data_ini=data_ini, data_fim=data_fim, motivo_sub=None)
         except Exception as exc:
             self.lab_status.setText(f"Erro ao consultar: {exc}")
-            self._render_pie([])
+            self._render_chart([])
             return
 
         # Agregar por agrup
@@ -205,13 +219,28 @@ class GraficoPage(QWidget):
         if outros_val > 0:
             itens.append(("Outros", outros_val))
 
-        self._render_pie(itens)
+        self._render_chart(itens)
         total = sum(v for _, v in itens)
         self.lab_status.setText(
             f"{len(regs)} registro(s) no período. Total: {total:.2f} ({metric})."
         )
 
-    def _render_pie(self, itens: List[tuple[str, float]]) -> None:
+    def _render_chart(self, itens: List[tuple[str, float]]) -> None:
+        if not HAS_QTCHARTS:
+            return
+        tipo = self.cb_tipo.currentText() if hasattr(self, "cb_tipo") else "Pizza"
+        if tipo == "Barras":
+            self._render_bar(itens)
+        else:
+            self._render_pie(itens, donut=(tipo == "Donut"))
+        # Reaplica tema para ajustar cores de eixos/labels após recriar séries
+        try:
+            modo = getattr(self, "_modo_tema", "claro")
+            self.aplicar_tema(modo)
+        except Exception:
+            pass
+
+    def _render_pie(self, itens: List[tuple[str, float]], donut: bool = False) -> None:
         if not HAS_QTCHARTS:
             return
         # Limpa séries antigas
@@ -219,6 +248,11 @@ class GraficoPage(QWidget):
             self.chart.removeSeries(s)
 
         series = QPieSeries()
+        # Donut: define furo interno
+        try:
+            series.setHoleSize(0.45 if donut else 0.0)
+        except Exception:
+            pass
         for nome, valor in itens:
             if valor <= 0:
                 continue
@@ -240,6 +274,49 @@ class GraficoPage(QWidget):
         self.chart.legend().setVisible(True)
         self.chart.legend().setAlignment(Qt.AlignRight)
 
+    def _render_bar(self, itens: List[tuple[str, float]]) -> None:
+        if not HAS_QTCHARTS:
+            return
+        # Limpa séries/axes antigos
+        for s in list(self.chart.series()):
+            self.chart.removeSeries(s)
+        for ax in list(self.chart.axes()):
+            self.chart.removeAxis(ax)
+
+        categorias: List[str] = [nome for nome, _ in itens]
+        valores: List[float] = [float(valor) for _, valor in itens]
+        bar_set = QBarSet("Valores")
+        bar_set.append(valores)
+        series = QBarSeries()
+        series.append(bar_set)
+        try:
+            series.setLabelsVisible(True)
+        except Exception:
+            pass
+        self.chart.addSeries(series)
+
+        axis_x = QBarCategoryAxis()
+        axis_x.append(categorias)
+        try:
+            if len(categorias) > 8 and hasattr(axis_x, "setLabelsAngle"):
+                axis_x.setLabelsAngle(45)
+        except Exception:
+            pass
+        axis_y = QValueAxis()
+        axis_y.setLabelFormat("%i")
+        max_v = max(valores) if valores else 0.0
+        axis_y.setRange(0, max(1, int(max_v * 1.15)))
+
+        self.chart.addAxis(axis_x, Qt.AlignBottom)
+        self.chart.addAxis(axis_y, Qt.AlignLeft)
+        series.attachAxis(axis_x)
+        series.attachAxis(axis_y)
+
+        agrup = getattr(self, "_last_agrup", "Dimensão")
+        metric = getattr(self, "_last_metric", "Métrica")
+        self.chart.setTitle(f"{metric} por {agrup}")
+        self.chart.legend().setVisible(False)
+
     # ---------------- Tema do gráfico ---------------- #
     def aplicar_tema(self, modo: str) -> None:
         """Aplica tema 'claro' ou 'escuro' ao chart, alinhado com o estilo global.
@@ -250,6 +327,8 @@ class GraficoPage(QWidget):
         if not HAS_QTCHARTS:
             return
         escuro = (str(modo).lower() == "escuro")
+        # Guarda modo aplicado para reaplicar após recriar séries
+        self._modo_tema = "escuro" if escuro else "claro"
         try:
             self.chart.setTheme(QChart.ChartThemeDark if escuro else QChart.ChartThemeLight)
         except Exception:
@@ -275,15 +354,32 @@ class GraficoPage(QWidget):
                 lg.setLabelColor(fg)
         except Exception:
             pass
-        # Ajusta rótulos das séries atuais
+        # Ajusta rótulos das séries atuais e eixos
         try:
+            # Séries
             for s in self.chart.series():
+                # Pizza/Donut
                 if hasattr(s, "slices"):
                     for sl in s.slices():
                         if hasattr(sl, "setLabelColor"):
                             sl.setLabelColor(fg)
-                        # Bordas discretas nas fatias em escuro
                         if escuro and hasattr(sl, "setPen"):
                             sl.setPen(QPen(QColor(70, 74, 84)))
+                # Barras
+                if hasattr(s, "setLabelsColor"):
+                    try:
+                        s.setLabelsColor(fg)
+                    except Exception:
+                        pass
+            # Eixos
+            for ax in self.chart.axes():
+                if hasattr(ax, "setLabelsColor"):
+                    ax.setLabelsColor(fg)
+                if hasattr(ax, "setTitleBrush"):
+                    ax.setTitleBrush(fg)
+                if hasattr(ax, "setLinePenColor"):
+                    ax.setLinePenColor(fg)
+                if hasattr(ax, "setGridLineColor"):
+                    ax.setGridLineColor(QColor(60, 64, 72) if escuro else QColor(220, 220, 220))
         except Exception:
             pass
