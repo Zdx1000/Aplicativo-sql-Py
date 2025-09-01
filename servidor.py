@@ -716,6 +716,13 @@ class MainWindow(QMainWindow):
 			self.CURRENT_USER_DISPLAY = self.CURRENT_USER
 		self._montar_ui()
 		self._aplicar_estilo_slimbar()
+		# Aplica tema CLARO imediatamente na inicialização da janela principal
+		try:
+			self._ativar_tema_claro()
+			if hasattr(self, "btn_tema_claro"):
+				self.btn_tema_claro.setChecked(True)
+		except Exception:
+			pass
 		self._selecionar_secao_inicial("Bloqueado")
 
 	def _montar_ui(self) -> None:
@@ -1470,6 +1477,8 @@ def executar() -> int:
 	# Força estilo/paleta independentes do sistema desde o início
 	try:
 		QApplication.setStyle("Fusion")
+		# Garante tema CLARO global (não seguir tema do Windows)
+		QApplication.instance().setPalette(build_palette_claro())
 	except Exception:
 		pass
 	# Inicializa banco

@@ -23,12 +23,18 @@ def build_palette_claro():
     """
     from PySide6.QtGui import QPalette, QColor
     pal = QPalette()
+    # Fundos claros
     pal.setColor(QPalette.ColorRole.Window, QColor(255, 255, 252))
     pal.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
     pal.setColor(QPalette.ColorRole.AlternateBase, QColor(250, 250, 245))
-    pal.setColor(QPalette.ColorRole.Text, QColor(10, 10, 10))
     pal.setColor(QPalette.ColorRole.Button, QColor(255, 255, 250))
+    # Textos padrão escuros (como no tema claro do Windows)
+    pal.setColor(QPalette.ColorRole.WindowText, QColor(20, 20, 20))
+    pal.setColor(QPalette.ColorRole.Text, QColor(20, 20, 20))
     pal.setColor(QPalette.ColorRole.ButtonText, QColor(20, 20, 20))
+    pal.setColor(QPalette.ColorRole.ToolTipText, QColor(20, 20, 20))
+    # Placeholder levemente acinzentado
+    pal.setColor(QPalette.ColorRole.PlaceholderText, QColor(120, 120, 120))
     # Seleção (highlight) padrão do Windows (azul) com texto branco
     pal.setColor(QPalette.ColorRole.Highlight, QColor(0, 120, 215))  # #0078d7
     pal.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
