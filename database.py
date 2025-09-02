@@ -234,6 +234,40 @@ class EpiItemModel(Base):
     epi: Mapped[EpiModel] = relationship(back_populates="itens")
 
 
+# ---------------- Senha Corte ---------------- #
+
+class SenhaCorteModel(Base):
+    __tablename__ = "SENHA_CORTE"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ordem: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    carga: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    valor: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    data_ordem: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    tipo_tratativa: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    observacao: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    data_finalizacao: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
+    usuario: Mapped[Optional[str]] = mapped_column(String(150), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    itens: Mapped[list["SenhaCorteItemModel"]] = relationship(back_populates="cabecalho", cascade="all,delete-orphan")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<SenhaCorte id={self.id} ordem={self.ordem} data={self.data_ordem.isoformat()}>"
+
+
+class SenhaCorteItemModel(Base):
+    __tablename__ = "SENHA_CORTE_ITENS"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    senha_corte_id: Mapped[int] = mapped_column(ForeignKey("SENHA_CORTE.id"), nullable=False, index=True)
+    codigo: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
+    tipo_tratativa: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+
+    cabecalho: Mapped[SenhaCorteModel] = relationship(back_populates="itens")
+
+
 class ConfiguracaoAPIEPI(Base):
     """Tabela para armazenar o catálogo de Código/Produto utilizado na página de EPIs.
 
@@ -598,6 +632,84 @@ def salvar_epi(
         session.refresh(cab)
         try:
             salvar_auditoria(transacao="EPIs", tipo="input")
+        except Exception:
+            pass
+        return cab.id
+
+
+def salvar_senha_corte(
+    *,
+    ordem: int,
+    carga: int,
+    valor: float | Decimal | None,
+    data_ordem: str,
+    tipo_tratativa: str,
+    observacao: Optional[str],
+    data_finalizacao: Optional[str] = None,
+    itens: list[dict] = [],
+) -> int:
+    """Salva uma Senha Corte (cabeçalho + itens) e retorna o ID do cabeçalho.
+
+    Campos do cabeçalho conforme pedido:
+      - ordem(int), carga(int), valor(float/Decimal), data_ordem(Date), tipo_tratativa(str), observacao(str|None)
+      - data_finalizacao(Date|None)
+    Itens: lista de dicts com chaves: codigo(int), quantidade(int), tipo_tratativa(str)
+    """
+    from datetime import date as _date
+
+    try:
+        ordem_i = int(ordem)
+        carga_i = int(carga)
+    except (TypeError, ValueError):
+        raise ValueError("Ordem/Carga inválidas")
+    if ordem_i < 10_000 or carga_i < 1_000:
+        raise ValueError("Restrições: ordem >= 10000 e carga >= 1000")
+    data_dt = _date.fromisoformat(str(data_ordem))
+    data_fim_dt = _date.fromisoformat(str(data_finalizacao)) if data_finalizacao else None
+    tipo_norm = (tipo_tratativa or "").strip()
+    obs_norm = (observacao.strip() if (observacao and observacao.strip() != "") else None)
+    val_dec = try_decimal(valor)
+
+    with get_session() as session:
+        cab = SenhaCorteModel(
+            ordem=ordem_i,
+            carga=carga_i,
+            valor=val_dec,
+            data_ordem=data_dt,
+            tipo_tratativa=tipo_norm,
+            observacao=obs_norm,
+            data_finalizacao=data_fim_dt,
+            usuario=_CurrentUser.username if _CurrentUser.username else None,
+        )
+        session.add(cab)
+        session.flush()
+
+        itens_objs: list[SenhaCorteItemModel] = []
+        for it in itens or []:
+            try:
+                codigo = int(it.get("codigo") or it.get("codigo_item") or 0)
+            except Exception:
+                codigo = 0
+            try:
+                quantidade = int(it.get("quantidade") or 0)
+            except Exception:
+                quantidade = 0
+            tipo_it = str(it.get("tipo_tratativa") or tipo_norm)
+            if codigo >= 1000 and quantidade >= 1:
+                itens_objs.append(
+                    SenhaCorteItemModel(
+                        senha_corte_id=cab.id,
+                        codigo=codigo,
+                        quantidade=quantidade,
+                        tipo_tratativa=tipo_it,
+                    )
+                )
+        if itens_objs:
+            session.add_all(itens_objs)
+        session.commit()
+        session.refresh(cab)
+        try:
+            salvar_auditoria(transacao="SenhaCorte", tipo="input")
         except Exception:
             pass
         return cab.id

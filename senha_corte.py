@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from style import QSS_HEADER_BLOQUEADO, QSS_FORMULARIO_BASE
+from database import salvar_senha_corte
 
 
 class _IntDelegate(QStyledItemDelegate):
@@ -548,11 +549,21 @@ class SenhaCortePage(QWidget):
 			QMessageBox.warning(self, "Aviso", erro)
 			return
 		data = self._coletar_payload()
-		# Impressão no console
+		# Persistência no banco
 		try:
-			print("[SenhaCorte] Inserção:", data, flush=True)
-		except Exception:
-			pass
-		QMessageBox.information(self, "Senha Corte", "Dados enviados ao console.")
+			cab_id = salvar_senha_corte(
+				ordem=data["ordem"],
+				carga=data["carga"],
+				valor=data["valor"],
+				data_ordem=data["data_ordem"],
+				tipo_tratativa=data["tipo"],
+				observacao=data["observacao"] or None,
+				data_finalizacao=data.get("data_finalizacao"),
+				itens=[{"codigo": it.get("codigo_item"), "quantidade": it.get("quantidade"), "tipo_tratativa": data["tipo"]} for it in data["itens"]],
+			)
+			QMessageBox.information(self, "Senha Corte", f"Registro salvo com sucesso (ID {cab_id}).")
+			self._limpar_formulario()
+		except Exception as e:
+			QMessageBox.critical(self, "Erro", f"Falha ao salvar: {e}")
 		# Limpa o formulário após inserção
 		self._limpar_formulario()
