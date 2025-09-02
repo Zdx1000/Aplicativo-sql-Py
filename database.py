@@ -1398,6 +1398,97 @@ def consultar_monitoramento_por_periodo(*, data_ini: Optional[str] = None, data_
             })
         return out
 
+def consultar_senha_corte_por_periodo(*, data_ini: Optional[str] = None, data_fim: Optional[str] = None) -> List[dict]:
+    """Consulta SENHA_CORTE por data_ordem entre data_ini e data_fim (inclusive).
+
+    Retorna lista de dicts com campos do cabeçalho e item_count (nº de itens em SENHA_CORTE_ITENS).
+    data_ini/data_fim: strings ISO (YYYY-MM-DD); se omitidos, não filtram.
+    """
+    di = None
+    df = None
+    if data_ini:
+        try:
+            di = date.fromisoformat(data_ini)
+        except ValueError:
+            raise ValueError("data_ini inválida (use YYYY-MM-DD)")
+    if data_fim:
+        try:
+            df = date.fromisoformat(data_fim)
+        except ValueError:
+            raise ValueError("data_fim inválida (use YYYY-MM-DD)")
+    if di and df and di > df:
+        raise ValueError("Período inválido: data inicial maior que a final")
+    with get_session() as session:
+        q = session.query(SenhaCorteModel)
+        if di:
+            q = q.filter(SenhaCorteModel.data_ordem >= di)
+        if df:
+            q = q.filter(SenhaCorteModel.data_ordem <= df)
+        regs = q.order_by(SenhaCorteModel.data_ordem.desc(), SenhaCorteModel.created_at.desc()).all()
+        out: List[dict] = []
+        for r in regs:
+            try:
+                cnt = session.query(SenhaCorteItemModel).filter(SenhaCorteItemModel.senha_corte_id == r.id).count()
+            except Exception:
+                cnt = 0
+            out.append({
+                "id": r.id,
+                "ordem": r.ordem,
+                "carga": r.carga,
+                "valor": _dec_str(r.valor) or "",
+                "data_ordem": r.data_ordem.isoformat(),
+                "tipo_tratativa": r.tipo_tratativa,
+                "observacao": r.observacao or "",
+                "usuario": r.usuario,
+                "created_at": r.created_at.isoformat(timespec="seconds"),
+                "item_count": cnt,
+            })
+        return out
+
+def listar_itens_de_senha_corte(senha_id: int) -> List[dict]:
+    """Lista itens de uma Senha Corte por ID do cabeçalho."""
+    try:
+        sid = int(senha_id)
+    except (TypeError, ValueError):
+        raise ValueError("ID inválido")
+    with get_session() as session:
+        itens = (
+            session.query(SenhaCorteItemModel)
+            .filter(SenhaCorteItemModel.senha_corte_id == sid)
+            .order_by(SenhaCorteItemModel.id.asc())
+            .all()
+        )
+        out: List[dict] = []
+        for it in itens:
+            out.append({
+                "id": it.id,
+                "codigo": it.codigo,
+                "quantidade": it.quantidade,
+                "tipo_tratativa": it.tipo_tratativa,
+            })
+        return out
+
+def excluir_senha_corte(senha_id: int) -> bool:
+    """Exclui um registro de SENHA_CORTE (cabeçalho e itens em cascata).
+    - ADMINISTRADOR pode excluir qualquer registro
+    - USUARIO só pode excluir registros que ele mesmo inseriu
+    Retorna True se excluído, False caso contrário.
+    """
+    with get_session() as session:
+        reg = session.get(SenhaCorteModel, senha_id)
+        if not reg:
+            return False
+        if _CurrentUser.tipo != "ADMINISTRADOR":
+            if reg.usuario != _CurrentUser.username:
+                return False
+        session.delete(reg)
+        session.commit()
+        try:
+            salvar_auditoria(transacao="SenhaCorte", tipo="alteração")
+        except Exception:
+            pass
+        return True
+
 ## ---------------- Configurações API (EPIs) ---------------- ##
 
 def listar_configuracoes_api() -> list[dict]:

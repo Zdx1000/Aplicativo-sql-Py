@@ -105,7 +105,7 @@ class ConsultasPage(QWidget):
         self.form_consultas = form
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         self.cb_fonte = QComboBox()
-        self.cb_fonte.addItems(["Bloqueado", "Consolidado", "Reimpressão", "Almoxarifado", "EPIs"])
+        self.cb_fonte.addItems(["Bloqueado", "Consolidado", "Reimpressão", "Almoxarifado", "EPIs", "Senha Corte"])
         self.cb_fonte.currentTextChanged.connect(self._on_mudar_fonte_consulta)
         form.addRow("Fonte:", self.cb_fonte)
 
@@ -234,6 +234,33 @@ class ConsultasPage(QWidget):
         self.wrap_epi.setLayout(row_epi)
         form.addRow("Filtro:", self.wrap_epi)
 
+        # Senha Corte (por período)
+        from PySide6.QtWidgets import QDateEdit
+        from PySide6.QtCore import QDate
+        self.ed_sc_data_ini = QDateEdit()
+        self.ed_sc_data_ini.setDisplayFormat("yyyy-MM-dd")
+        self.ed_sc_data_ini.setCalendarPopup(True)
+        self.ed_sc_data_ini.setDate(QDate.currentDate())
+        self.ed_sc_data_fim = QDateEdit()
+        self.ed_sc_data_fim.setDisplayFormat("yyyy-MM-dd")
+        self.ed_sc_data_fim.setCalendarPopup(True)
+        self.ed_sc_data_fim.setDate(QDate.currentDate())
+        self.btn_buscar_sc = QPushButton("Buscar")
+        self.btn_buscar_sc.clicked.connect(self._executar_consulta_senha_corte)
+        self.btn_exportar_sc = QPushButton("Exportar")
+        self.btn_exportar_sc.setToolTip("Exportar resultados atuais")
+        self.btn_exportar_sc.clicked.connect(self._exportar_consulta)
+        row_sc = QHBoxLayout()
+        row_sc.addWidget(QLabel("De:"))
+        row_sc.addWidget(self.ed_sc_data_ini)
+        row_sc.addWidget(QLabel("Até:"))
+        row_sc.addWidget(self.ed_sc_data_fim)
+        row_sc.addWidget(self.btn_buscar_sc)
+        row_sc.addWidget(self.btn_exportar_sc)
+        self.wrap_sc = QWidget()
+        self.wrap_sc.setLayout(row_sc)
+        form.addRow("Período:", self.wrap_sc)
+
         lay.addLayout(form)
 
         # Tabela resultados (default com 9 colunas de Bloqueado)
@@ -337,6 +364,7 @@ class ConsultasPage(QWidget):
         is_mon = (fonte == "Reimpressão")
         is_alm = (fonte == "Almoxarifado")
         is_epi = (fonte == "EPIs")
+        is_sc = (fonte == "Senha Corte")
         # Mostrar/ocultar
         self.wrap_busca.setVisible(is_bloq)
         lbl_item = self.form_consultas.labelForField(self.wrap_busca)
@@ -358,6 +386,10 @@ class ConsultasPage(QWidget):
         lbl_epi = self.form_consultas.labelForField(self.wrap_epi)
         if lbl_epi:
             lbl_epi.setVisible(is_epi)
+        self.wrap_sc.setVisible(is_sc)
+        lbl_sc = self.form_consultas.labelForField(self.wrap_sc)
+        if lbl_sc:
+            lbl_sc.setVisible(is_sc)
         # Habilitar/desabilitar
         self.ed_busca_item.setEnabled(is_bloq)
         self.btn_buscar_item.setEnabled(is_bloq)
@@ -375,6 +407,9 @@ class ConsultasPage(QWidget):
         self.ed_epi_data_fim.setEnabled(is_epi)
         self.ed_epi_matricula.setEnabled(is_epi)
         self.btn_buscar_epis.setEnabled(is_epi)
+        self.ed_sc_data_ini.setEnabled(is_sc)
+        self.ed_sc_data_fim.setEnabled(is_sc)
+        self.btn_buscar_sc.setEnabled(is_sc)
         # Reset da tabela conforme fonte
         self.tab_resultados.setSortingEnabled(False)
         self.tab_resultados.clear()
@@ -410,6 +445,11 @@ class ConsultasPage(QWidget):
             self.tab_resultados.setColumnCount(len(headers))
             self.tab_resultados.setHorizontalHeaderLabels(headers)
             self.lab_status_consulta.setText("Escolha período e/ou matrícula para consultar EPIs.")
+        elif is_sc:
+            headers = ["ID", "Data Ordem", "Ordem", "Carga", "Valor", "Tipo", "Observação", "Usuário", "Criado em", "ITEM", "Excluir"]
+            self.tab_resultados.setColumnCount(len(headers))
+            self.tab_resultados.setHorizontalHeaderLabels(headers)
+            self.lab_status_consulta.setText("Escolha o período para consultar Senha Corte.")
         else:
             headers = ["ID", "Setor", "Turno", "Matrícula", "Responsável", "Insumo", "Quantidade", "Observação", "Usuário", "Criado em"]
             self.tab_resultados.setColumnCount(len(headers))
@@ -417,6 +457,154 @@ class ConsultasPage(QWidget):
             self.lab_status_consulta.setText("Escolha o turno e período para consultar.")
         self.tab_resultados.setRowCount(0)
         self.tab_resultados.setSortingEnabled(True)
+
+    def _executar_consulta_senha_corte(self) -> None:
+        di = self.ed_sc_data_ini.date().toString("yyyy-MM-dd") if hasattr(self, "ed_sc_data_ini") else None
+        df = self.ed_sc_data_fim.date().toString("yyyy-MM-dd") if hasattr(self, "ed_sc_data_fim") else None
+        try:
+            from database import consultar_senha_corte_por_periodo
+            regs = consultar_senha_corte_por_periodo(data_ini=di, data_fim=df)
+        except ValueError as exc:
+            self.lab_status_consulta.setText(str(exc))
+            return
+        except Exception as exc:
+            self.lab_status_consulta.setText(f"Erro na consulta: {exc}")
+            return
+        self._popular_tabela_senha_corte(regs)
+        self._ultimos_resultados_consulta = regs
+        self.lab_status_consulta.setText(f"{len(regs)} registro(s) de Senha Corte." if regs else "Nenhum registro de Senha Corte no período.")
+
+    def _popular_tabela_senha_corte(self, regs: list[dict]) -> None:
+        headers = ["ID", "Data Ordem", "Ordem", "Carga", "Valor", "Tipo", "Observação", "Usuário", "Criado em", "ITEM", "Excluir"]
+        self.tab_resultados.setSortingEnabled(False)
+        self.tab_resultados.clearContents()
+        self.tab_resultados.setRowCount(len(regs))
+        self.tab_resultados.setColumnCount(len(headers))
+        self.tab_resultados.setHorizontalHeaderLabels(headers)
+        for row, r in enumerate(regs):
+            # ID
+            it_id = QTableWidgetItem()
+            try:
+                it_id.setData(Qt.ItemDataRole.DisplayRole, int(r.get("id")))
+            except Exception:
+                it_id.setData(Qt.ItemDataRole.DisplayRole, 0)
+            self.tab_resultados.setItem(row, 0, it_id)
+            # Data Ordem
+            self.tab_resultados.setItem(row, 1, QTableWidgetItem(r.get("data_ordem", "")))
+            # Ordem
+            it_ordem = QTableWidgetItem()
+            try:
+                it_ordem.setData(Qt.ItemDataRole.DisplayRole, int(r.get("ordem")))
+            except Exception:
+                it_ordem.setData(Qt.ItemDataRole.DisplayRole, 0)
+            self.tab_resultados.setItem(row, 2, it_ordem)
+            # Carga
+            it_carga = QTableWidgetItem()
+            try:
+                it_carga.setData(Qt.ItemDataRole.DisplayRole, int(r.get("carga")))
+            except Exception:
+                it_carga.setData(Qt.ItemDataRole.DisplayRole, 0)
+            self.tab_resultados.setItem(row, 3, it_carga)
+            # Valor (texto já formatado/normalizado do DB)
+            self.tab_resultados.setItem(row, 4, QTableWidgetItem(r.get("valor", "")))
+            # Tipo e Observação
+            self.tab_resultados.setItem(row, 5, QTableWidgetItem(r.get("tipo_tratativa", "")))
+            self.tab_resultados.setItem(row, 6, QTableWidgetItem(r.get("observacao", "")))
+            # Usuário / Criado em
+            self.tab_resultados.setItem(row, 7, QTableWidgetItem(r.get("usuario") or ""))
+            self.tab_resultados.setItem(row, 8, QTableWidgetItem(r.get("created_at", "")))
+            # ITEM
+            from PySide6.QtWidgets import QPushButton
+            btn = QPushButton(f"{r.get('item_count', 0)} item(ns)")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _, sid=r.get("id"): self._mostrar_itens_de_senha_corte(sid))
+            self.tab_resultados.setCellWidget(row, 9, btn)
+            # Excluir
+            from database import obter_tipo_usuario_atual, obter_usuario_atual
+            tipo = obter_tipo_usuario_atual()
+            usuario = obter_usuario_atual()
+            can = (tipo == "ADMINISTRADOR" or (usuario and usuario == r.get("usuario")))
+            btn_excluir = QPushButton("X")
+            btn_excluir.setToolTip("Excluir este registro de Senha Corte")
+            btn_excluir.setObjectName("BtnExcluir")
+            btn_excluir.setStyleSheet(
+                "QPushButton{background-color:#8B0000;color:#ffffff;border:1px solid #5a0000;padding:2px 8px;border-radius:4px;}"
+                "QPushButton:hover{background-color:#a40000;}"
+                "QPushButton:pressed{background-color:#7a0000;}"
+            )
+            btn_excluir.setEnabled(can)
+            if can:
+                btn_excluir.clicked.connect(lambda _, sid=r.get("id"): self._confirmar_e_excluir_senha_corte(sid))
+            self.tab_resultados.setCellWidget(row, 10, btn_excluir)
+        self.tab_resultados.setSortingEnabled(True)
+
+    def _mostrar_itens_de_senha_corte(self, senha_id: int) -> None:
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout
+        from database import listar_itens_de_senha_corte
+        try:
+            itens = listar_itens_de_senha_corte(senha_id)
+        except Exception as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Senha Corte", f"Falha ao listar itens: {exc}")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Itens da Senha Corte #{senha_id}")
+        v = QVBoxLayout(dlg)
+        tab = QTableWidget(0, 3)
+        tab.setHorizontalHeaderLabels(["Código", "Quantidade", "Tipo"])
+        hdr = tab.horizontalHeader()
+        hdr.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        try:
+            hdr.setStyleSheet(
+                "QHeaderView::section {background-color: #1976D2; color: #ffffff; font-weight: 600; padding: 6px 4px; border: none;}"
+            )
+        except Exception:
+            pass
+        tab.setAlternatingRowColors(True)
+        tab.setRowCount(len(itens))
+        for row, it in enumerate(itens):
+            # Código
+            it_cod = QTableWidgetItem()
+            try:
+                it_cod.setData(Qt.ItemDataRole.DisplayRole, int(it.get("codigo", 0)))
+            except Exception:
+                it_cod.setData(Qt.ItemDataRole.DisplayRole, 0)
+            tab.setItem(row, 0, it_cod)
+            # Quantidade
+            it_qtd = QTableWidgetItem()
+            try:
+                it_qtd.setData(Qt.ItemDataRole.DisplayRole, int(it.get("quantidade", 0)))
+            except Exception:
+                it_qtd.setData(Qt.ItemDataRole.DisplayRole, 0)
+            tab.setItem(row, 1, it_qtd)
+            # Tipo
+            tab.setItem(row, 2, QTableWidgetItem(it.get("tipo_tratativa", "")))
+        v.addWidget(tab)
+        row_btn = QHBoxLayout()
+        row_btn.addStretch(1)
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.clicked.connect(dlg.accept)
+        row_btn.addWidget(btn_fechar)
+        v.addLayout(row_btn)
+        dlg.resize(600, 300)
+        dlg.exec()
+
+    def _confirmar_e_excluir_senha_corte(self, senha_id: int) -> None:
+        from PySide6.QtWidgets import QMessageBox
+        resp = QMessageBox.question(self, "Confirmar exclusão", f"Deseja realmente excluir a Senha Corte #{senha_id}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if resp != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            from database import excluir_senha_corte
+            ok = excluir_senha_corte(senha_id)
+        except Exception as exc:
+            QMessageBox.critical(self, "Erro", f"Falha ao excluir: {exc}")
+            return
+        if ok:
+            QMessageBox.information(self, "Excluído", "Registro de Senha Corte excluído com sucesso.")
+            self._executar_consulta_senha_corte()
+        else:
+            QMessageBox.warning(self, "Aviso", "Sem permissão ou registro não encontrado.")
 
     def _executar_consulta_epis(self) -> None:
         di = self.ed_epi_data_ini.date().toString("yyyy-MM-dd") if hasattr(self, "ed_epi_data_ini") else None
@@ -1148,6 +1336,49 @@ class ConsultasPage(QWidget):
                                 it.get("uon", ""),
                                 it.get("valor_unit", ""),
                                 it.get("valor_total", ""),
+                            ])
+                    wb.save(caminho)
+                else:
+                    with open(caminho, "w", encoding="utf-8") as f:
+                        for r in regs:
+                            f.write("\t".join([str(r.get(k, "") or "") for k in headers]) + "\n")
+            elif fonte == "Senha Corte":
+                headers = ["id", "data_ordem", "ordem", "carga", "valor", "tipo_tratativa", "observacao", "usuario", "created_at", "item_count"]
+                vis_headers = ["ID", "Data Ordem", "Ordem", "Carga", "Valor", "Tipo", "Observação", "Usuário", "Criado em", "Itens"]
+                if formato == "csv":
+                    import csv
+                    with open(caminho, "w", newline="", encoding="utf-8") as f:
+                        w = csv.writer(f, delimiter=';')
+                        w.writerow(vis_headers)
+                        for r in regs:
+                            w.writerow([r.get(k, "") or "" for k in headers])
+                elif formato == "xlsx":
+                    from openpyxl import Workbook
+                    from database import listar_itens_de_senha_corte
+                    wb = Workbook()
+                    ws1 = wb.active
+                    ws1.title = "SENHA_CORTE"
+                    ws1.append(vis_headers)
+                    for r in regs:
+                        ws1.append([r.get(k, "") or "" for k in headers])
+                    ws2 = wb.create_sheet("SENHA_CORTE_ITENS")
+                    itens_headers = ["senha_id", "id", "codigo", "quantidade", "tipo_tratativa"]
+                    ws2.append(itens_headers)
+                    for r in regs:
+                        sid = r.get("id")
+                        if not sid:
+                            continue
+                        try:
+                            itens = listar_itens_de_senha_corte(sid)
+                        except Exception:
+                            itens = []
+                        for it in itens:
+                            ws2.append([
+                                sid,
+                                it.get("id", ""),
+                                it.get("codigo", ""),
+                                it.get("quantidade", ""),
+                                it.get("tipo_tratativa", ""),
                             ])
                     wb.save(caminho)
                 else:
