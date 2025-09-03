@@ -152,6 +152,7 @@ class Registro:
 	quantidade: int
 	motivo: str
 	setor_responsavel: str
+	matricula: int
 
 
 class FormularioInsercao(QWidget):
@@ -261,6 +262,15 @@ class FormularioInsercao(QWidget):
 		self.campo_quantidade.setValidator(QIntValidator(1, 1_000_000, self))
 		self.campo_quantidade.setClearButtonEnabled(True)
 		form_layout.addRow("&Quantidade:", self.campo_quantidade)
+
+		# Campo: Matrícula (int) abaixo de Quantidade
+		self.campo_matricula = QLineEdit()
+		self.campo_matricula.setPlaceholderText("Responsável pela Movimentação / Erro")
+		self.campo_matricula.setValidator(QIntValidator(1, 99_999_999, self))
+		self.campo_matricula.setClearButtonEnabled(True)
+		lab_matricula = QLabel("Matrícula:")
+		lab_matricula.setToolTip("Matrícula do responsável pela movimentação ou erro.")
+		form_layout.addRow(lab_matricula, self.campo_matricula)
 
 		# Campo: Motivo (texto livre multi-linha)
 		# Wrapper Observações: combobox + campo texto
@@ -398,6 +408,7 @@ class FormularioInsercao(QWidget):
 			quantidade=int(self.campo_quantidade.text()),
 			motivo=self.campo_motivo.toPlainText().strip(),
 			setor_responsavel=self.campo_setor.currentText().strip(),
+			matricula=int(self.campo_matricula.text()),
 		)
 		# Persistência
 		try:
@@ -407,6 +418,7 @@ class FormularioInsercao(QWidget):
 				quantidade=registro.quantidade,
 				motivo=registro.motivo,
 				setor_responsavel=registro.setor_responsavel,
+				matricula=registro.matricula,
 			)
 			self._mostrar_feedback(
 				f"Registro #{registro_id} inserido: {registro.item} (Qtd: {registro.quantidade})",

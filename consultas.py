@@ -414,8 +414,8 @@ class ConsultasPage(QWidget):
         self.tab_resultados.setSortingEnabled(False)
         self.tab_resultados.clear()
         if is_bloq:
-            self.tab_resultados.setColumnCount(9)
-            self.tab_resultados.setHorizontalHeaderLabels(["ID", "Item", "Quantidade", "Motivo", "Setor", "Usuário", "Criado em", "Editar", "Excluir"])
+            self.tab_resultados.setColumnCount(10)
+            self.tab_resultados.setHorizontalHeaderLabels(["ID", "Item", "Quantidade", "Motivo", "Setor", "Matrícula", "Usuário", "Criado em", "Editar", "Excluir"])
             self.lab_status_consulta.setText("Informe um item para consultar.")
         elif is_consol:
             headers = [
@@ -992,11 +992,16 @@ class ConsultasPage(QWidget):
             except Exception:
                 item_qtd.setData(Qt.ItemDataRole.DisplayRole, 0)
             self.tab_resultados.setItem(row, 2, item_qtd)
-            # Motivo, Setor, Usuário, Criado em
+            # Motivo
             self.tab_resultados.setItem(row, 3, QTableWidgetItem(r.get("motivo", "")))
+            # Setor
             self.tab_resultados.setItem(row, 4, QTableWidgetItem(r.get("setor_responsavel", "")))
-            self.tab_resultados.setItem(row, 5, QTableWidgetItem(r.get("usuario") or ""))
-            self.tab_resultados.setItem(row, 6, QTableWidgetItem(r.get("created_at", "")))
+            # Matrícula
+            self.tab_resultados.setItem(row, 5, QTableWidgetItem(str(r.get("matricula", ""))))
+            # Usuário
+            self.tab_resultados.setItem(row, 6, QTableWidgetItem(r.get("usuario") or ""))
+            # Criado em
+            self.tab_resultados.setItem(row, 7, QTableWidgetItem(r.get("created_at", "")))
             # Editar / Excluir
             btn_editar = QPushButton("Editar")
             btn_editar.setToolTip("Editar quantidade/setor")
@@ -1008,7 +1013,7 @@ class ConsultasPage(QWidget):
                 btn_editar.clicked.connect(lambda _, rid=r.get("id"), qtd=r.get("quantidade"), setor=r.get("setor_responsavel"): self._abrir_edicao_registro(rid, qtd, setor))
             else:
                 btn_editar.setEnabled(False)
-            self.tab_resultados.setCellWidget(row, 7, btn_editar)
+            self.tab_resultados.setCellWidget(row, 8, btn_editar)
 
             btn_excluir = QPushButton("X")
             btn_excluir.setToolTip("Excluir este registro")
@@ -1023,7 +1028,7 @@ class ConsultasPage(QWidget):
                 btn_excluir.clicked.connect(lambda _, rid=r.get("id"), item=r.get("item"), usr=r.get("usuario"): self._confirmar_e_excluir_registro(rid, item, usr))
             else:
                 btn_excluir.setEnabled(False)
-            self.tab_resultados.setCellWidget(row, 8, btn_excluir)
+            self.tab_resultados.setCellWidget(row, 9, btn_excluir)
         self.tab_resultados.setSortingEnabled(was_sorting)
 
     def _popular_tabela_monitoramento(self, regs: list[dict]) -> None:
@@ -1386,29 +1391,31 @@ class ConsultasPage(QWidget):
                         for r in regs:
                             f.write("\t".join([str(r.get(k, "") or "") for k in headers]) + "\n")
             else:
+                headers = ["id", "item", "quantidade", "motivo", "setor", "matricula", "usuario", "created_at"]
+                vis_headers = ["ID", "Item", "Quantidade", "Motivo", "Setor", "Matrícula", "Usuário", "Criado em"]
                 if formato == "csv":
                     import csv
                     with open(caminho, "w", newline="", encoding="utf-8") as f:
                         w = csv.writer(f, delimiter=';')
-                        w.writerow(["id", "item", "quantidade", "motivo", "setor", "usuario", "created_at"])
+                        w.writerow(vis_headers)
                         for r in regs:
                             w.writerow([
-                                r["id"], r["item"], r["quantidade"], r["motivo"], r["setor_responsavel"], r.get("usuario") or "", r["created_at"]
+                                r.get("id", ""), r.get("item", ""), r.get("quantidade", ""), r.get("motivo", ""), r.get("setor_responsavel", ""), r.get("matricula", ""), r.get("usuario", ""), r.get("created_at", "")
                             ])
                 elif formato == "xlsx":
                     from openpyxl import Workbook
                     wb = Workbook()
                     ws = wb.active
-                    ws.append(["id", "item", "quantidade", "motivo", "setor", "usuario", "created_at"])
+                    ws.append(vis_headers)
                     for r in regs:
                         ws.append([
-                            r["id"], r["item"], r["quantidade"], r["motivo"], r["setor_responsavel"], r.get("usuario") or "", r["created_at"]
+                            r.get("id", ""), r.get("item", ""), r.get("quantidade", ""), r.get("motivo", ""), r.get("setor_responsavel", ""), r.get("matricula", ""), r.get("usuario", ""), r.get("created_at", "")
                         ])
                     wb.save(caminho)
                 else:
                     with open(caminho, "w", encoding="utf-8") as f:
                         for r in regs:
-                            f.write(f"{r['id']}\t{r['item']}\t{r['quantidade']}\t{r['motivo']}\t{r['setor_responsavel']}\t{r.get('usuario') or ''}\t{r['created_at']}\n")
+                            f.write(f"{r.get('id','')}\t{r.get('item','')}\t{r.get('quantidade','')}\t{r.get('motivo','')}\t{r.get('setor_responsavel','')}\t{r.get('matricula','')}\t{r.get('usuario','')}\t{r.get('created_at','')}\n")
         except Exception as exc:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Erro", f"Falha ao exportar: {exc}")

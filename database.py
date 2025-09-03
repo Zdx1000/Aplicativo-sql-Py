@@ -153,6 +153,7 @@ class RegistroModel(Base):
     quantidade: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     motivo: Mapped[str] = mapped_column(String(2000), nullable=False)
     setor_responsavel: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    matricula: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     usuario: Mapped[Optional[str]] = mapped_column(String(150), nullable=True, index=True)  # nome do usuário que inseriu
     usuario_id: Mapped[Optional[int]] = mapped_column(ForeignKey("usuarios.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
@@ -343,7 +344,7 @@ def init_db() -> None:
             pass
     # Cria tabelas
     Base.metadata.create_all(engine)
-    # Adiciona coluna usuario se banco antigo não possuir
+    # Adiciona coluna usuario e matricula se banco antigo não possuir
     with engine.begin() as conn:
         cols = conn.exec_driver_sql("PRAGMA table_info(registros)").fetchall()
         col_names = {c[1] for c in cols}
@@ -351,6 +352,8 @@ def init_db() -> None:
             conn.exec_driver_sql("ALTER TABLE registros ADD COLUMN usuario VARCHAR(150)")
         if "usuario_id" not in col_names:
             conn.exec_driver_sql("ALTER TABLE registros ADD COLUMN usuario_id INTEGER REFERENCES usuarios(id)")
+        if "matricula" not in col_names:
+            conn.exec_driver_sql("ALTER TABLE registros ADD COLUMN matricula INTEGER")
         # Migrações leves para MONITORAMENTO (se a tabela existir)
         try:
             cols_m = conn.exec_driver_sql("PRAGMA table_info(MONITORAMENTO)").fetchall()
@@ -442,7 +445,7 @@ def listar_auditoria(limit: int = 10) -> list[dict]:
             return []
 
 
-def salvar_registro(*, item: int, quantidade: int, motivo: str, setor_responsavel: str) -> int:
+def salvar_registro(*, item: int, quantidade: int, motivo: str, setor_responsavel: str, matricula: int) -> int:
     """Salva um registro e retorna o ID gerado.
 
     Operação síncrona, adequada para inserções rápidas. Para alto volume em lote,
@@ -454,6 +457,7 @@ def salvar_registro(*, item: int, quantidade: int, motivo: str, setor_responsave
             quantidade=quantidade,
             motivo=motivo,
             setor_responsavel=setor_responsavel,
+            matricula=matricula,
             usuario=_CurrentUser.username if _CurrentUser.username else None,
             usuario_id=_CurrentUser.user_id,
         )
@@ -904,6 +908,7 @@ def consultar_registros_por_item(item: int) -> list[dict]:
                     "quantidade": r.quantidade,
                     "motivo": r.motivo,
                     "setor_responsavel": r.setor_responsavel,
+                    "matricula": r.matricula,
                     "usuario": r.usuario,
                     "created_at": r.created_at.isoformat(timespec="seconds"),
                 }
@@ -991,6 +996,7 @@ def consultar_todos_registros(limit: Optional[int] = None) -> list[dict]:
                     "quantidade": r.quantidade,
                     "motivo": r.motivo,
                     "setor_responsavel": r.setor_responsavel,
+                    "matricula": r.matricula,
                     "usuario": r.usuario,
                     "created_at": r.created_at.isoformat(timespec="seconds"),
                 }
@@ -1039,6 +1045,7 @@ def consultar_registros_filtrados(*, data_ini: Optional[str] = None, data_fim: O
                 "quantidade": r.quantidade,
                 "motivo": r.motivo,
                 "setor_responsavel": r.setor_responsavel,
+                "matricula": r.matricula,
                 "usuario": r.usuario,
                 "created_at": r.created_at.isoformat(timespec="seconds"),
             })
