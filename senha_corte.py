@@ -280,6 +280,22 @@ class TratativasDialog(QDialog):
 		self.btn_recarregar = QPushButton("Recarregar")
 		box.addButton(self.btn_recarregar, QDialogButtonBox.ActionRole)
 		self.btn_recarregar.clicked.connect(self._carregar)
+		# Estilos: Recarregar (verde escuro) e Close (vermelho)
+		self.btn_recarregar.setStyleSheet(
+			"QPushButton { background: #1B5E20; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; }"
+			"QPushButton:hover { background: #2E7D32; }"
+			"QPushButton:pressed { background: #124116; }"
+		)
+		try:
+			btn_close = box.button(QDialogButtonBox.Close)
+			if btn_close:
+				btn_close.setStyleSheet(
+					"QPushButton { background: #C62828; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; }"
+					"QPushButton:hover { background: #D32F2F; }"
+					"QPushButton:pressed { background: #B71C1C; }"
+				)
+		except Exception:
+			pass
 		box.rejected.connect(self.reject)
 		box.accepted.connect(self.accept)
 		root.addWidget(box)
@@ -336,6 +352,20 @@ class TratativasDialog(QDialog):
 		form = QFormLayout()
 		cb_tipo = QComboBox()
 		cb_tipo.addItems(["Finalizado", "Cancelado"])  # destino permitido
+		# Estilo conforme seleção
+		def _apply_combo_style():
+			val = cb_tipo.currentText()
+			if val == "Cancelado":
+				cb_tipo.setStyleSheet("QComboBox { background-color: #f18c0f; color: #000000; }")
+			elif val == "Finalizado":
+				cb_tipo.setStyleSheet("QComboBox { background-color: #2bc06a; color: #000000; }")
+			else:
+				cb_tipo.setStyleSheet("")
+		_apply_combo_style()
+		try:
+			cb_tipo.currentIndexChanged.connect(_apply_combo_style)
+		except Exception:
+			pass
 		ed_obs = QTextEdit()
 		ed_obs.setPlaceholderText("Observação (opcional)")
 		ed_obs.setFixedHeight(90)
@@ -556,9 +586,21 @@ class SenhaCortePage(QWidget):
 			pass
 		self.btn_tratativas.setToolTip("Listar e editar Senhas em andamento")
 		self.btn_tratativas.clicked.connect(self._abrir_tratativas)
+		# Azul escuro para Tratativas
+		self.btn_tratativas.setStyleSheet(
+			"QPushButton { background: #0D47A1; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; }"
+			"QPushButton:hover { background: #1565C0; }"
+			"QPushButton:pressed { background: #0B3D91; }"
+		)
 		row_btn.addWidget(self.btn_tratativas)
 		self.btn_inserir = QPushButton("Inserir")
 		self.btn_inserir.clicked.connect(self._on_inserir)
+		# Verde escuro para Inserir
+		self.btn_inserir.setStyleSheet(
+			"QPushButton { background: #1B5E20; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; }"
+			"QPushButton:hover { background: #2E7D32; }"
+			"QPushButton:pressed { background: #124116; }"
+		)
 		row_btn.addWidget(self.btn_inserir)
 		root.addLayout(row_btn)
 
