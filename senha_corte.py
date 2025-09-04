@@ -28,7 +28,12 @@ from PySide6.QtWidgets import (
 )
 
 from style import QSS_HEADER_BLOQUEADO, QSS_FORMULARIO_BASE
-from database import salvar_senha_corte
+from database import (
+	salvar_senha_corte,
+	obter_senha_corte_por_ordem,
+	listar_senhas_em_andamento,
+	atualizar_tipo_senha_corte,
+)
 
 
 class _IntDelegate(QStyledItemDelegate):
@@ -232,6 +237,131 @@ class ItensDialog(QDialog):
 		self.btn_del.setEnabled(self.tab.currentRow() >= 0)
 
 
+class TratativasDialog(QDialog):
+	"""Lista senhas em andamento e permite marcar como Finalizado ou Cancelado.
+
+	Permissões são tratadas no backend: ADMINISTRADOR vê/edita todas; USUARIO apenas as próprias.
+	"""
+
+	def __init__(self, parent: Optional[QWidget] = None) -> None:
+		super().__init__(parent)
+		self.setWindowTitle("Tratativas — Senhas em andamento")
+		self.resize(780, 440)
+		self._build()
+
+	def _build(self) -> None:
+		root = QVBoxLayout(self)
+		lab = QLabel("Senhas em andamento")
+		root.addWidget(lab)
+
+		self.tab = QTableWidget(0, 6)
+		self.tab.setHorizontalHeaderLabels(["ID", "Ordem", "Carga", "Data", "Usuário", "Tipo"])
+		try:
+			from PySide6.QtWidgets import QHeaderView
+			hdr = self.tab.horizontalHeader()
+			hdr.setStretchLastSection(True)
+			hdr.setSectionResizeMode(QHeaderView.Stretch)
+		except Exception:
+			pass
+		self.tab.verticalHeader().setVisible(False)
+		self.tab.setSelectionBehavior(QAbstractItemView.SelectRows)
+		self.tab.setSelectionMode(QAbstractItemView.SingleSelection)
+		self.tab.setEditTriggers(QAbstractItemView.NoEditTriggers)
+		root.addWidget(self.tab, 1)
+
+		# Dê duplo clique na coluna 'Tipo' quando estiver 'Em andamento' para editar
+		try:
+			self.tab.cellDoubleClicked.connect(self._on_cell_double_clicked)
+		except Exception:
+			pass
+
+		# Rodapé: Recarregar à esquerda de Close
+		box = QDialogButtonBox(QDialogButtonBox.Close)
+		self.btn_recarregar = QPushButton("Recarregar")
+		box.addButton(self.btn_recarregar, QDialogButtonBox.ActionRole)
+		self.btn_recarregar.clicked.connect(self._carregar)
+		box.rejected.connect(self.reject)
+		box.accepted.connect(self.accept)
+		root.addWidget(box)
+
+		self._carregar()
+
+	def _carregar(self) -> None:
+		try:
+			rows = listar_senhas_em_andamento()
+		except Exception as e:
+			rows = []
+			QMessageBox.critical(self, "Erro", f"Falha ao carregar: {e}")
+		self.tab.setRowCount(0)
+		for r in rows:
+			rr = self.tab.rowCount()
+			self.tab.insertRow(rr)
+			self.tab.setItem(rr, 0, QTableWidgetItem(str(r.get("id"))))
+			self.tab.setItem(rr, 1, QTableWidgetItem(str(r.get("ordem"))))
+			self.tab.setItem(rr, 2, QTableWidgetItem(str(r.get("carga"))))
+			self.tab.setItem(rr, 3, QTableWidgetItem(str(r.get("data_ordem"))))
+			self.tab.setItem(rr, 4, QTableWidgetItem(str(r.get("usuario") or "")))
+			tipo_txt = str(r.get("tipo_tratativa"))
+			tipo_item = QTableWidgetItem(tipo_txt)
+			if tipo_txt == "Em andamento":
+				try:
+					# Destaque visual para indicar ação
+					tipo_item.setBackground(QColor("#FFF59D"))  # amarelo claro
+					f = tipo_item.font()
+					f.setBold(True)
+					tipo_item.setFont(f)
+				except Exception:
+					pass
+				tipo_item.setToolTip("Dê duplo clique para editar o tipo e adicionar observação.")
+			self.tab.setItem(rr, 5, tipo_item)
+
+	def _on_cell_double_clicked(self, row: int, column: int) -> None:
+		# Edita apenas se a coluna for 'Tipo'
+		if column != 5:
+			return
+		tipo_atual = (self.tab.item(row, 5).text() if self.tab.item(row, 5) else "").strip()
+		if tipo_atual != "Em andamento":
+			return
+		it_id = self.tab.item(row, 0)
+		try:
+			sid = int(it_id.text()) if it_id else 0
+		except Exception:
+			sid = 0
+		if sid <= 0:
+			return
+		# Abre painel de edição (mini diálogo) para escolher tipo e adicionar observação
+		dlg = QDialog(self)
+		dlg.setWindowTitle("Atualizar tratativa")
+		lay = QVBoxLayout(dlg)
+		form = QFormLayout()
+		cb_tipo = QComboBox()
+		cb_tipo.addItems(["Finalizado", "Cancelado"])  # destino permitido
+		ed_obs = QTextEdit()
+		ed_obs.setPlaceholderText("Observação (opcional)")
+		ed_obs.setFixedHeight(90)
+		form.addRow("Tipo:", cb_tipo)
+		form.addRow("Observação:", ed_obs)
+		lay.addLayout(form)
+		btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+		lay.addWidget(btns)
+		btns.accepted.connect(dlg.accept)
+		btns.rejected.connect(dlg.reject)
+		if dlg.exec() != QDialog.Accepted:
+			return
+		novo_tipo = cb_tipo.currentText().strip()
+		observacao = ed_obs.toPlainText().strip() or None
+		try:
+			ok = atualizar_tipo_senha_corte(sid, novo_tipo, observacao)
+		except Exception as e:
+			QMessageBox.critical(self, "Erro", f"Falha ao atualizar: {e}")
+			return
+		if not ok:
+			QMessageBox.warning(self, "Aviso", "Não foi possível atualizar. Verifique permissões/estado.")
+			return
+		QMessageBox.information(self, "Sucesso", "Atualizado com sucesso.")
+		self._carregar()
+
+
 class SenhaCortePage(QWidget):
 	"""Página para registrar Senha Corte.
 
@@ -317,7 +447,7 @@ class SenhaCortePage(QWidget):
 			pass
 
 		head_layout.addStretch(1)
-		# Botão à direita
+		# Botão à direita (Ajuda)
 		head_layout.addWidget(self.btn_help, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
 		# Limita altura do cabeçalho para manter consistência visual
 		head_frame.setMaximumHeight(116)
@@ -418,6 +548,15 @@ class SenhaCortePage(QWidget):
 		# Botões de ação
 		row_btn = QHBoxLayout()
 		row_btn.addStretch(1)
+		# Botão Tratativas (à esquerda do Inserir)
+		self.btn_tratativas = QPushButton("Tratativas")
+		try:
+			self.btn_tratativas.setCursor(Qt.CursorShape.PointingHandCursor)
+		except Exception:
+			pass
+		self.btn_tratativas.setToolTip("Listar e editar Senhas em andamento")
+		self.btn_tratativas.clicked.connect(self._abrir_tratativas)
+		row_btn.addWidget(self.btn_tratativas)
 		self.btn_inserir = QPushButton("Inserir")
 		self.btn_inserir.clicked.connect(self._on_inserir)
 		row_btn.addWidget(self.btn_inserir)
@@ -425,6 +564,10 @@ class SenhaCortePage(QWidget):
 
 		# Estilo base
 		self.setStyleSheet(self.styleSheet() + QSS_FORMULARIO_BASE)
+
+	def _abrir_tratativas(self) -> None:
+		dlg = TratativasDialog(self)
+		dlg.exec()
 
 	def _abrir_itens_dialogo(self) -> None:
 		dlg = ItensDialog(self, itens=self._itens)
@@ -548,6 +691,28 @@ class SenhaCortePage(QWidget):
 		if erro:
 			QMessageBox.warning(self, "Aviso", erro)
 			return
+		# Checa duplicidade de Ordem
+		try:
+			ordem_i = int(self.ed_ordem.text())
+		except Exception:
+			ordem_i = 0
+		if ordem_i >= 10000:
+			try:
+				existente = obter_senha_corte_por_ordem(ordem_i)
+			except Exception as e:
+				existente = None
+			if existente:
+				usuario = existente.get("usuario") or "(sem usuário)"
+				carga = existente.get("carga")
+				data = existente.get("data_ordem")
+				tipo = existente.get("tipo_tratativa")
+				QMessageBox.warning(
+					self,
+					"Ordem já registrada",
+					f"A ordem {ordem_i} já foi inserida por: {usuario}.\n"
+					f"Carga: {carga}\nData: {data}\nTratativa: {tipo}",
+				)
+				return
 		data = self._coletar_payload()
 		# Persistência no banco
 		try:

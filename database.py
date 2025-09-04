@@ -1496,6 +1496,116 @@ def excluir_senha_corte(senha_id: int) -> bool:
             pass
         return True
 
+def obter_senha_corte_por_ordem(ordem: int) -> Optional[dict]:
+    """Retorna o cabeçalho de Senha Corte pela ordem, se existir; caso contrário, None.
+
+    Campos retornados: id, ordem, carga, valor, data_ordem, tipo_tratativa, observacao, usuario, created_at.
+    """
+    try:
+        ordem_i = int(ordem)
+    except (TypeError, ValueError):
+        raise ValueError("Ordem inválida (use número)")
+    with get_session() as session:
+        reg = (
+            session.query(SenhaCorteModel)
+            .filter(SenhaCorteModel.ordem == ordem_i)
+            .order_by(SenhaCorteModel.created_at.desc())
+            .first()
+        )
+        if not reg:
+            return None
+        return {
+            "id": reg.id,
+            "ordem": reg.ordem,
+            "carga": reg.carga,
+            "valor": _dec_str(reg.valor) or "",
+            "data_ordem": reg.data_ordem.isoformat(),
+            "tipo_tratativa": reg.tipo_tratativa,
+            "observacao": reg.observacao or "",
+            "usuario": reg.usuario,
+            "created_at": reg.created_at.isoformat(timespec="seconds"),
+        }
+
+def listar_senhas_em_andamento() -> List[dict]:
+    """Lista senhas de corte em andamento.
+
+    Regras de permissão:
+    - ADMINISTRADOR: vê todas em "Em andamento".
+    - USUARIO: vê apenas as que ele mesmo inseriu.
+    """
+    with get_session() as session:
+        q = session.query(SenhaCorteModel).filter(SenhaCorteModel.tipo_tratativa == "Em andamento")
+        if _CurrentUser.tipo != "ADMINISTRADOR":
+            q = q.filter(SenhaCorteModel.usuario == _CurrentUser.username)
+        regs = q.order_by(SenhaCorteModel.created_at.desc()).all()
+        out: List[dict] = []
+        for r in regs:
+            try:
+                cnt = session.query(SenhaCorteItemModel).filter(SenhaCorteItemModel.senha_corte_id == r.id).count()
+            except Exception:
+                cnt = 0
+            out.append({
+                "id": r.id,
+                "ordem": r.ordem,
+                "carga": r.carga,
+                "valor": _dec_str(r.valor) or "",
+                "data_ordem": r.data_ordem.isoformat(),
+                "tipo_tratativa": r.tipo_tratativa,
+                "observacao": r.observacao or "",
+                "usuario": r.usuario,
+                "created_at": r.created_at.isoformat(timespec="seconds"),
+                "item_count": cnt,
+            })
+        return out
+
+def atualizar_tipo_senha_corte(senha_id: int, novo_tipo: str, observacao: Optional[str] = None) -> bool:
+    """Atualiza o tipo de tratativa da Senha Corte para Finalizado ou Cancelado.
+
+    - ADMINISTRADOR pode atualizar qualquer registro em andamento.
+    - USUARIO só pode atualizar registros em andamento que ele mesmo inseriu.
+    Ao finalizar/cancelar, define data_finalizacao como a data atual e atualiza o tipo dos itens.
+    Retorna True se alterado; False se não encontrado ou sem permissão/estado inválido.
+    """
+    novo_tipo = (novo_tipo or "").strip()
+    if novo_tipo not in {"Finalizado", "Cancelado"}:
+        raise ValueError("novo_tipo inválido (use 'Finalizado' ou 'Cancelado')")
+    from datetime import date as _date
+    with get_session() as session:
+        reg = session.get(SenhaCorteModel, int(senha_id))
+        if not reg:
+            return False
+        # Permissões
+        if _CurrentUser.tipo != "ADMINISTRADOR":
+            if reg.usuario != _CurrentUser.username:
+                return False
+        # Só permite alterar se estiver em andamento
+        if (reg.tipo_tratativa or "").strip() != "Em andamento":
+            return False
+        reg.tipo_tratativa = novo_tipo
+        reg.data_finalizacao = _date.today()
+        # Observação (opcional): concatena à existente
+        obs = (observacao or "").strip()
+        if obs:
+            try:
+                if reg.observacao and reg.observacao.strip():
+                    reg.observacao = f"{reg.observacao}\n{obs}"
+                else:
+                    reg.observacao = obs
+            except Exception:
+                reg.observacao = obs
+        # Propaga tipo para itens
+        try:
+            for it in reg.itens or []:
+                it.tipo_tratativa = novo_tipo
+        except Exception:
+            pass
+        session.commit()
+        try:
+            salvar_auditoria(transacao="SenhaCorte", tipo="alteração")
+        except Exception:
+            pass
+        return True
+
 ## ---------------- Configurações API (EPIs) ---------------- ##
 
 def listar_configuracoes_api() -> list[dict]:
