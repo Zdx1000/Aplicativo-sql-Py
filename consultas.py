@@ -510,8 +510,9 @@ class ConsultasPage(QWidget):
             # Tipo e Observação
             self.tab_resultados.setItem(row, 5, QTableWidgetItem(r.get("tipo_tratativa", "")))
             self.tab_resultados.setItem(row, 6, QTableWidgetItem(r.get("observacao", "")))
-            # Usuário / Criado em
-            self.tab_resultados.setItem(row, 7, QTableWidgetItem(r.get("usuario") or ""))
+            # Usuário / Criado em (sempre em caixa alta)
+            usuario_upper = (r.get("usuario") or "").upper()
+            self.tab_resultados.setItem(row, 7, QTableWidgetItem(usuario_upper))
             self.tab_resultados.setItem(row, 8, QTableWidgetItem(r.get("created_at", "")))
             # ITEM
             from PySide6.QtWidgets import QPushButton
