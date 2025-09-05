@@ -234,9 +234,12 @@ class ConsultasPage(QWidget):
         self.wrap_epi.setLayout(row_epi)
         form.addRow("Filtro:", self.wrap_epi)
 
-        # Senha Corte (por período)
+        # Senha Corte (por período e ordem)
         from PySide6.QtWidgets import QDateEdit
         from PySide6.QtCore import QDate
+        self.ed_sc_ordem = QLineEdit()
+        self.ed_sc_ordem.setValidator(QIntValidator(10000, 99999999, self))
+        self.ed_sc_ordem.setPlaceholderText("Ordem (opcional)")
         self.ed_sc_data_ini = QDateEdit()
         self.ed_sc_data_ini.setDisplayFormat("yyyy-MM-dd")
         self.ed_sc_data_ini.setCalendarPopup(True)
@@ -251,6 +254,8 @@ class ConsultasPage(QWidget):
         self.btn_exportar_sc.setToolTip("Exportar resultados atuais")
         self.btn_exportar_sc.clicked.connect(self._exportar_consulta)
         row_sc = QHBoxLayout()
+        row_sc.addWidget(QLabel("Ordem:"))
+        row_sc.addWidget(self.ed_sc_ordem)
         row_sc.addWidget(QLabel("De:"))
         row_sc.addWidget(self.ed_sc_data_ini)
         row_sc.addWidget(QLabel("Até:"))
@@ -259,7 +264,7 @@ class ConsultasPage(QWidget):
         row_sc.addWidget(self.btn_exportar_sc)
         self.wrap_sc = QWidget()
         self.wrap_sc.setLayout(row_sc)
-        form.addRow("Período:", self.wrap_sc)
+        form.addRow("Filtro:", self.wrap_sc)
 
         lay.addLayout(form)
 
@@ -461,9 +466,14 @@ class ConsultasPage(QWidget):
     def _executar_consulta_senha_corte(self) -> None:
         di = self.ed_sc_data_ini.date().toString("yyyy-MM-dd") if hasattr(self, "ed_sc_data_ini") else None
         df = self.ed_sc_data_fim.date().toString("yyyy-MM-dd") if hasattr(self, "ed_sc_data_fim") else None
+        ordem_txt = self.ed_sc_ordem.text().strip() if hasattr(self, "ed_sc_ordem") else ""
         try:
             from database import consultar_senha_corte_por_periodo
-            regs = consultar_senha_corte_por_periodo(data_ini=di, data_fim=df)
+            if ordem_txt:
+                regs = consultar_senha_corte_por_periodo(data_ini=di, data_fim=df)
+                regs = [r for r in regs if str(r.get("ordem")) == ordem_txt]
+            else:
+                regs = consultar_senha_corte_por_periodo(data_ini=di, data_fim=df)
         except ValueError as exc:
             self.lab_status_consulta.setText(str(exc))
             return
@@ -472,7 +482,10 @@ class ConsultasPage(QWidget):
             return
         self._popular_tabela_senha_corte(regs)
         self._ultimos_resultados_consulta = regs
-        self.lab_status_consulta.setText(f"{len(regs)} registro(s) de Senha Corte." if regs else "Nenhum registro de Senha Corte no período.")
+        if ordem_txt:
+            self.lab_status_consulta.setText(f"{len(regs)} registro(s) de Senha Corte para Ordem {ordem_txt}." if regs else f"Nenhum registro de Senha Corte para Ordem {ordem_txt}.")
+        else:
+            self.lab_status_consulta.setText(f"{len(regs)} registro(s) de Senha Corte." if regs else "Nenhum registro de Senha Corte no período.")
 
     def _popular_tabela_senha_corte(self, regs: list[dict]) -> None:
         headers = ["ID", "Data Ordem", "Ordem", "Carga", "Valor", "Tipo", "Observação", "Usuário", "Criado em", "ITEM", "Excluir"]
