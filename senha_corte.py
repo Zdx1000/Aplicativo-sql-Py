@@ -510,7 +510,16 @@ class SenhaCortePage(QWidget):
 		self.ed_ordem = QLineEdit()
 		self.ed_ordem.setValidator(QIntValidator(10_000, 9_999_999, self))
 		self.ed_ordem.setPlaceholderText("Ex: 123412")
-		form.addRow("&Ordem:", self.ed_ordem)
+		self.lab_ordem_info = QLabel("")
+		self.lab_ordem_info.setStyleSheet("color: red; font-weight: bold;")
+		ordem_layout = QHBoxLayout()
+		ordem_layout.addWidget(self.ed_ordem)
+		ordem_layout.addWidget(self.lab_ordem_info)
+		ordem_widget = QWidget()
+		ordem_widget.setLayout(ordem_layout)
+		form.addRow("&Ordem:", ordem_widget)
+		self.ed_ordem.editingFinished.connect(self._verificar_ordem_existente)
+
 
 		# Botão Itens abaixo da Ordem
 		self.btn_itens = QPushButton("Inserir Itens…")
@@ -606,6 +615,27 @@ class SenhaCortePage(QWidget):
 
 		# Estilo base
 		self.setStyleSheet(self.styleSheet() + QSS_FORMULARIO_BASE)
+
+	def _verificar_ordem_existente(self) -> None:
+		"""Verifica se a ordem já existe e muda a cor do texto para vermelho se sim."""
+		txt = self.ed_ordem.text().strip()
+		try:
+			ordem_i = int(txt)
+		except Exception:
+			ordem_i = 0
+		if ordem_i >= 10000:
+			try:
+				existente = obter_senha_corte_por_ordem(ordem_i)
+			except Exception:
+				existente = None
+			if existente:
+				# Ordem já existe: cor vermelha e texto informativo
+				self.ed_ordem.setStyleSheet("color: red;")
+				self.lab_ordem_info.setText("- Ordem já existente")
+				return
+		# Ordem não existe ou inválida: cor padrão e sem texto
+		self.ed_ordem.setStyleSheet("")
+		self.lab_ordem_info.setText("")
 
 	def _abrir_tratativas(self) -> None:
 		dlg = TratativasDialog(self)
