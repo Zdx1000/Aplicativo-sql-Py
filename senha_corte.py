@@ -407,50 +407,116 @@ class TratativasDialog(QDialog):
 			sid = 0
 		if sid <= 0:
 			return
-		# Abre painel de edição (mini diálogo) para escolher tipo e adicionar observação
+		# Novo: editar tratativa dos itens
+		from database import listar_itens_de_senha_corte, get_session, SenhaCorteItemModel, SenhaCorteModel
+		itens = listar_itens_de_senha_corte(sid)
 		dlg = QDialog(self)
-		dlg.setWindowTitle("Atualizar tratativa")
+		dlg.setWindowTitle("Definir tratativa dos itens da Ordem")
+		dlg.resize(520, 320)
 		lay = QVBoxLayout(dlg)
-		form = QFormLayout()
-		cb_tipo = QComboBox()
-		cb_tipo.addItems(["Finalizado", "Cancelado"])  # destino permitido
-		# Estilo conforme seleção
-		def _apply_combo_style():
-			val = cb_tipo.currentText()
-			if val == "Cancelado":
-				cb_tipo.setStyleSheet("QComboBox { background-color: #f18c0f; color: #000000; }")
-			elif val == "Finalizado":
-				cb_tipo.setStyleSheet("QComboBox { background-color: #2bc06a; color: #000000; }")
-			else:
-				cb_tipo.setStyleSheet("")
-		_apply_combo_style()
+		# Cabeçalho estilizado
+		head = QFrame()
+		head.setObjectName("HeaderBloqueado")
+		hl = QHBoxLayout(head)
+		hl.setContentsMargins(12, 8, 12, 8)
+		hl.setSpacing(8)
+		icon = QLabel("✂️")
+		icon.setObjectName("IconeBloqueado")
+		lab = QLabel("Tratativa dos Itens da Ordem")
+		lab_font = lab.font()
+		lab_font.setPointSize(max(lab_font.pointSize(), 18))
+		lab.setFont(lab_font)
+		lab.setStyleSheet("color: #ffffff; font-size: 16px; font-weight: bold;")
+		lab.setObjectName("TituloBloqueado")
+		hl.addWidget(icon)
+		hl.addWidget(lab)
+		hl.addStretch(1)
+		lay.addWidget(head)
 		try:
-			cb_tipo.currentIndexChanged.connect(_apply_combo_style)
+			from style import QSS_HEADER_BLOQUEADO
+			if QSS_HEADER_BLOQUEADO:
+				dlg.setStyleSheet(dlg.styleSheet() + QSS_HEADER_BLOQUEADO)
 		except Exception:
 			pass
-		ed_obs = QTextEdit()
-		ed_obs.setPlaceholderText("Observação (opcional)")
-		ed_obs.setFixedHeight(90)
-		form.addRow("Tipo:", cb_tipo)
-		form.addRow("Observação:", ed_obs)
-		lay.addLayout(form)
+		tab = QTableWidget(len(itens), 3)
+		tab.setHorizontalHeaderLabels(["Código", "Quantidade", "Tipo tratativa"])
+		tab.verticalHeader().setVisible(False)
+		tab.setEditTriggers(QAbstractItemView.NoEditTriggers)
+		tab.setSelectionBehavior(QAbstractItemView.SelectRows)
+		tab.setSelectionMode(QAbstractItemView.SingleSelection)
+		tab.setAlternatingRowColors(True)
+		tab.setStyleSheet(
+            """
+            QTableWidget { background: #fff; gridline-color: #2a2a2a; font-size: 15px; }
+            QHeaderView::section { background-color: #1e1e1e; color: #ddd; padding: 8px; border: none; font-size: 15px; }
+            QTableWidget::item:selected { background: #2d7dd2; color: white; }
+            QComboBox { padding: 4px 12px; font-size: 15px; border-radius: 6px; }
+            """
+        )
+		try:
+			from PySide6.QtWidgets import QHeaderView
+			hdr = tab.horizontalHeader()
+			hdr.setStretchLastSection(True)
+			hdr.setSectionResizeMode(QHeaderView.Stretch)
+		except Exception:
+			pass
+		for r, it in enumerate(itens):
+			tab.setItem(r, 0, QTableWidgetItem(str(it["codigo"])))
+			tab.setItem(r, 1, QTableWidgetItem(str(it["quantidade"])))
+			cb = QComboBox()
+			cb.addItems(["Finalizado", "Cancelado"])
+			cb.setCurrentText(it["tipo_tratativa"] if it["tipo_tratativa"] in ["Finalizado", "Cancelado"] else "Finalizado")
+			cb.setStyleSheet("QComboBox { background-color: #e3e3e3; color: #222; font-weight: bold; border-radius: 6px; }")
+			tab.setCellWidget(r, 2, cb)
+		lay.addWidget(tab)
 		btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+		btn_ok = btns.button(QDialogButtonBox.Ok)
+		btn_cancel = btns.button(QDialogButtonBox.Cancel)
+		if btn_ok:
+			btn_ok.setStyleSheet(
+				"QPushButton { background: #1B5E20; color: #fff; border: none; border-radius: 6px; padding: 8px 18px; font-size: 15px; }"
+				"QPushButton:hover { background: #2E7D32; }"
+				"QPushButton:pressed { background: #124116; }"
+			)
+		if btn_cancel:
+			btn_cancel.setStyleSheet(
+				"QPushButton { background: #C62828; color: #fff; border: none; border-radius: 6px; padding: 8px 18px; font-size: 15px; }"
+				"QPushButton:hover { background: #D32F2F; }"
+				"QPushButton:pressed { background: #B71C1C; }"
+			)
 		lay.addWidget(btns)
 		btns.accepted.connect(dlg.accept)
 		btns.rejected.connect(dlg.reject)
 		if dlg.exec() != QDialog.Accepted:
 			return
-		novo_tipo = cb_tipo.currentText().strip()
-		observacao = ed_obs.toPlainText().strip() or None
-		try:
-			ok = atualizar_tipo_senha_corte(sid, novo_tipo, observacao)
-		except Exception as e:
-			QMessageBox.critical(self, "Erro", f"Falha ao atualizar: {e}")
-			return
-		if not ok:
-			QMessageBox.warning(self, "Aviso", "Não foi possível atualizar. Verifique permissões/estado.")
-			return
-		QMessageBox.information(self, "Sucesso", "Atualizado com sucesso.")
+		# Coleta tratativas dos itens
+		novos_tipos = []
+		for r in range(tab.rowCount()):
+			codigo = int(tab.item(r, 0).text())
+			tipo = tab.cellWidget(r, 2).currentText()
+			novos_tipos.append((codigo, tipo))
+		# Atualiza no banco
+		with get_session() as session:
+			cab = session.get(SenhaCorteModel, sid)
+			if not cab:
+				QMessageBox.warning(self, "Aviso", "Ordem não encontrada.")
+				return
+			# Atualiza cada item
+			for it in cab.itens:
+				for cod, tipo in novos_tipos:
+					if it.codigo == cod:
+						it.tipo_tratativa = tipo
+			# Atualiza status da ordem
+			tipos = set(it.tipo_tratativa for it in cab.itens)
+			if len(tipos) == 1:
+				cab.tipo_tratativa = list(tipos)[0]
+			else:
+				cab.tipo_tratativa = "/".join(sorted(tipos))
+			from datetime import date as _date
+			if cab.tipo_tratativa != "Em andamento":
+				cab.data_finalizacao = _date.today()
+			session.commit()
+		QMessageBox.information(self, "Sucesso", "Tratativas dos itens atualizadas.")
 		self._carregar()
 
 
