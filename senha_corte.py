@@ -237,6 +237,23 @@ class ItensDialog(QDialog):
 		self.btn_del.setEnabled(self.tab.currentRow() >= 0)
 
 
+# === Item numérico para permitir sorting correto nas colunas ID / Ordem / Carga ===
+class _IntSortItem(QTableWidgetItem):  # type: ignore[name-defined]
+    def __init__(self, value):
+        super().__init__(str(value))
+        try:
+            self._val = int(str(value).strip())
+        except Exception:
+            self._val = 0
+    def __lt__(self, other):  # type: ignore[override]
+        if isinstance(other, _IntSortItem):
+            return self._val < other._val
+        try:
+            return self._val < int(other.text())  # type: ignore[call-arg]
+        except Exception:
+            return super().__lt__(other)
+
+
 class TratativasDialog(QDialog):
 	"""Lista senhas em andamento e permite marcar como Finalizado ou Cancelado.
 
@@ -254,6 +271,28 @@ class TratativasDialog(QDialog):
 		lab = QLabel("Senhas em andamento")
 		root.addWidget(lab)
 
+		# Barra de filtros (Ordem / Carga)
+		filt_layout = QHBoxLayout()
+		lbl_ord = QLabel("Filtrar Ordem:")
+		self.filtro_ordem = QLineEdit()
+		self.filtro_ordem.setPlaceholderText("Ex: 12345")
+		self.filtro_ordem.setMaxLength(10)
+		self.filtro_ordem.setValidator(QIntValidator(0, 99999999, self))
+		lbl_carga = QLabel("Filtrar Carga:")
+		self.filtro_carga = QLineEdit()
+		self.filtro_carga.setPlaceholderText("Ex: 54321")
+		self.filtro_carga.setValidator(QIntValidator(0, 99999999, self))
+		for w in (self.filtro_ordem, self.filtro_carga):
+			w.textChanged.connect(self._aplicar_filtros)
+			w.setFixedWidth(140)
+		filt_layout.addWidget(lbl_ord)
+		filt_layout.addWidget(self.filtro_ordem)
+		filt_layout.addSpacing(24)
+		filt_layout.addWidget(lbl_carga)
+		filt_layout.addWidget(self.filtro_carga)
+		filt_layout.addStretch(1)
+		root.addLayout(filt_layout)
+
 		self.tab = QTableWidget(0, 6)
 		self.tab.setHorizontalHeaderLabels(["ID", "Ordem", "Carga", "Data", "Usuário", "Tipo"])
 		try:
@@ -267,6 +306,7 @@ class TratativasDialog(QDialog):
 		self.tab.setSelectionBehavior(QAbstractItemView.SelectRows)
 		self.tab.setSelectionMode(QAbstractItemView.SingleSelection)
 		self.tab.setEditTriggers(QAbstractItemView.NoEditTriggers)
+		self.tab.setSortingEnabled(True)  # habilita ordenação clicando no cabeçalho
 		root.addWidget(self.tab, 1)
 
 		# Dê duplo clique na coluna 'Tipo' quando estiver 'Em andamento' para editar
@@ -308,13 +348,15 @@ class TratativasDialog(QDialog):
 		except Exception as e:
 			rows = []
 			QMessageBox.critical(self, "Erro", f"Falha ao carregar: {e}")
+		self.tab.setSortingEnabled(False)
 		self.tab.setRowCount(0)
 		for r in rows:
 			rr = self.tab.rowCount()
 			self.tab.insertRow(rr)
-			self.tab.setItem(rr, 0, QTableWidgetItem(str(r.get("id"))))
-			self.tab.setItem(rr, 1, QTableWidgetItem(str(r.get("ordem"))))
-			self.tab.setItem(rr, 2, QTableWidgetItem(str(r.get("carga"))))
+			# Colunas numéricas com item especial para ordenar
+			self.tab.setItem(rr, 0, _IntSortItem(r.get("id")))
+			self.tab.setItem(rr, 1, _IntSortItem(r.get("ordem")))
+			self.tab.setItem(rr, 2, _IntSortItem(r.get("carga")))
 			self.tab.setItem(rr, 3, QTableWidgetItem(str(r.get("data_ordem"))))
 			self.tab.setItem(rr, 4, QTableWidgetItem(str(r.get("usuario") or "")))
 			tipo_txt = str(r.get("tipo_tratativa"))
@@ -330,6 +372,26 @@ class TratativasDialog(QDialog):
 					pass
 				tipo_item.setToolTip("Dê duplo clique para editar o tipo e adicionar observação.")
 			self.tab.setItem(rr, 5, tipo_item)
+		self.tab.setSortingEnabled(True)
+		# Reaplica filtros se já havia texto
+		self._aplicar_filtros()
+
+	def _aplicar_filtros(self) -> None:
+		"""Mostra/oculta linhas conforme filtros de Ordem e Carga."""
+		f_ord = self.filtro_ordem.text().strip()
+		f_carga = self.filtro_carga.text().strip()
+		linhas = self.tab.rowCount()
+		for r in range(linhas):
+			mostrar = True
+			if f_ord:
+				it_ord = self.tab.item(r, 1)
+				if not it_ord or f_ord not in it_ord.text():
+					mostrar = False
+			if mostrar and f_carga:
+				it_carga = self.tab.item(r, 2)
+				if not it_carga or f_carga not in it_carga.text():
+					mostrar = False
+			self.tab.setRowHidden(r, not mostrar)
 
 	def _on_cell_double_clicked(self, row: int, column: int) -> None:
 		# Edita apenas se a coluna for 'Tipo'
