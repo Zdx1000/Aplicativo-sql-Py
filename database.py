@@ -154,6 +154,8 @@ class RegistroModel(Base):
     motivo: Mapped[str] = mapped_column(String(2000), nullable=False)
     setor_responsavel: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     matricula: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    # Nova coluna: data da movimentação (somente data)
+    data_mov: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
     usuario: Mapped[Optional[str]] = mapped_column(String(150), nullable=True, index=True)  # nome do usuário que inseriu
     usuario_id: Mapped[Optional[int]] = mapped_column(ForeignKey("usuarios.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
@@ -354,6 +356,8 @@ def init_db() -> None:
             conn.exec_driver_sql("ALTER TABLE registros ADD COLUMN usuario_id INTEGER REFERENCES usuarios(id)")
         if "matricula" not in col_names:
             conn.exec_driver_sql("ALTER TABLE registros ADD COLUMN matricula INTEGER")
+        if "data_mov" not in col_names:
+            conn.exec_driver_sql("ALTER TABLE registros ADD COLUMN data_mov DATE")
         # Migrações leves para MONITORAMENTO (se a tabela existir)
         try:
             cols_m = conn.exec_driver_sql("PRAGMA table_info(MONITORAMENTO)").fetchall()
@@ -445,12 +449,23 @@ def listar_auditoria(limit: int = 10) -> list[dict]:
             return []
 
 
-def salvar_registro(*, item: int, quantidade: int, motivo: str, setor_responsavel: str, matricula: int) -> int:
+def salvar_registro(*, item: int, quantidade: int, motivo: str, setor_responsavel: str, matricula: int, data_mov: Optional[date | str] = None) -> int:
     """Salva um registro e retorna o ID gerado.
 
     Operação síncrona, adequada para inserções rápidas. Para alto volume em lote,
     preferir criar sessão externa e usar add_all + commit único.
     """
+    # Normaliza data_mov para date
+    data_mov_dt: Optional[date] = None
+    if data_mov:
+        try:
+            if isinstance(data_mov, date):
+                data_mov_dt = data_mov
+            else:
+                data_mov_dt = date.fromisoformat(str(data_mov))
+        except Exception:
+            raise ValueError("Data da movimentação inválida (use YYYY-MM-DD)")
+
     with get_session() as session:
         modelo = RegistroModel(
             item=item,
@@ -458,6 +473,7 @@ def salvar_registro(*, item: int, quantidade: int, motivo: str, setor_responsave
             motivo=motivo,
             setor_responsavel=setor_responsavel,
             matricula=matricula,
+            data_mov=data_mov_dt,
             usuario=_CurrentUser.username if _CurrentUser.username else None,
             usuario_id=_CurrentUser.user_id,
         )
@@ -909,6 +925,7 @@ def consultar_registros_por_item(item: int) -> list[dict]:
                     "motivo": r.motivo,
                     "setor_responsavel": r.setor_responsavel,
                     "matricula": r.matricula,
+                    "data_mov": r.data_mov.isoformat() if getattr(r, "data_mov", None) else "",
                     "usuario": r.usuario,
                     "created_at": r.created_at.isoformat(timespec="seconds"),
                 }
@@ -997,6 +1014,7 @@ def consultar_todos_registros(limit: Optional[int] = None) -> list[dict]:
                     "motivo": r.motivo,
                     "setor_responsavel": r.setor_responsavel,
                     "matricula": r.matricula,
+                    "data_mov": r.data_mov.isoformat() if getattr(r, "data_mov", None) else "",
                     "usuario": r.usuario,
                     "created_at": r.created_at.isoformat(timespec="seconds"),
                 }
@@ -1046,6 +1064,7 @@ def consultar_registros_filtrados(*, data_ini: Optional[str] = None, data_fim: O
                 "motivo": r.motivo,
                 "setor_responsavel": r.setor_responsavel,
                 "matricula": r.matricula,
+                "data_mov": r.data_mov.isoformat() if getattr(r, "data_mov", None) else "",
                 "usuario": r.usuario,
                 "created_at": r.created_at.isoformat(timespec="seconds"),
             })
