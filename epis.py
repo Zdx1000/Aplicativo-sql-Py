@@ -26,7 +26,12 @@ from PySide6.QtWidgets import (
 )
 
 from style import QSS_FORMULARIO_BASE, QSS_HEADER_BLOQUEADO
-from database import listar_configuracoes_api, substituir_configuracoes_api
+from database import (
+    listar_configuracoes_api,
+    substituir_configuracoes_api,
+    listar_responsaveis_epi,
+    substituir_responsaveis_epi,
+)
 
 SETORES_GLOBAIS: List[str] = [
     "CARGA GROSSA",
@@ -210,13 +215,12 @@ class EpisPage(QWidget):
         self.ed_data.setDate(QDate.currentDate())
         form.addRow("&Data:", self.ed_data)
 
-        # Responsável (matrícula/int)
-        self.ed_resp = QLineEdit()
-        self.ed_resp.setValidator(QIntValidator(1, 99_999_999, self))
-        self.ed_resp.setPlaceholderText("Matrícula do responsável")
-        form.addRow("&Responsável:", self.ed_resp)
+        # Responsável (seleção por lista mantida no botão "Responsáveis")
+        self.cb_responsavel = QComboBox()
+        self._carregar_responsaveis()
+        form.addRow("&Responsável:", self.cb_responsavel)
 
-    # Produtos: Código (edita) -> Produto (auto) -> Quantidade -> Valor (Qtd x valor unitário da config)
+        # Produtos: Código (edita) -> Produto (auto) -> Quantidade -> Valor (Qtd x valor unitário da config)
         self.tab_produtos = QTableWidget(0, 5)
         self.tab_produtos.setHorizontalHeaderLabels(["Código", "Produto", "Quantidade", "Valor (R$)", "UON"])
         # Deixar a coluna Produto mais larga que as demais
@@ -311,9 +315,31 @@ class EpisPage(QWidget):
         except Exception:
             pass
         self.btn_config.clicked.connect(self._abrir_configuracoes)
+        # Botão Responsáveis (ao lado de Configurações)
+        self.btn_resp = QPushButton("Responsáveis")
+        try:
+            self.btn_resp.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_resp.setStyleSheet(
+                """
+                QPushButton {
+                    background-color: #2D7DD2; /* azul moderado */
+                    color: #ffffff;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 8px 14px;
+                    font-weight: 600;
+                }
+                QPushButton:hover { background-color: #2566A8; }
+                QPushButton:pressed { background-color: #1C4E80; }
+                """
+            )
+        except Exception:
+            pass
+        self.btn_resp.clicked.connect(self._abrir_responsaveis)
         self.btn_inserir = QPushButton("Inserir")
         self.btn_inserir.clicked.connect(self._on_inserir)
         row_btn.addWidget(self.btn_config)
+        row_btn.addWidget(self.btn_resp)
         row_btn.addWidget(self.btn_inserir)
         root.addLayout(row_btn)
 
@@ -388,7 +414,11 @@ class EpisPage(QWidget):
             return "Matrícula é obrigatória."
         if self.cb_setor.currentIndex() <= 0:
             return "Selecione um Setor."
-        if not self.ed_resp.text().strip():
+        try:
+            resp_val = self.cb_responsavel.currentData()
+            if resp_val is None or int(resp_val) <= 0:
+                return "Responsável é obrigatório."
+        except Exception:
             return "Responsável é obrigatório."
         if self.tab_produtos.rowCount() == 0:
             return "Adicione ao menos um produto."
@@ -468,7 +498,7 @@ class EpisPage(QWidget):
             "turno": self.cb_turno.currentText(),
             "primeira": self.cb_primeira.currentText(),
             "data": self.ed_data.date().toString("yyyy-MM-dd"),
-            "responsavel": int(self.ed_resp.text()),
+            "responsavel": self._responsavel_matricula_selecionado(),
             "produtos": produtos,
             "observacao": self.ed_obs.toPlainText().strip(),
         }
@@ -504,7 +534,10 @@ class EpisPage(QWidget):
             self.cb_turno.setCurrentIndex(0)
             self.cb_primeira.setCurrentIndex(0)
             self.ed_data.setDate(QDate.currentDate())
-            self.ed_resp.clear()
+            try:
+                self.cb_responsavel.setCurrentIndex(0)
+            except Exception:
+                pass
             # self.ed_codigo removido
             self.tab_produtos.setRowCount(0)
             if hasattr(self, "cb_motivo_epi"):
@@ -557,6 +590,68 @@ class EpisPage(QWidget):
         except Exception:
             pass
         QMessageBox.information(self, "Configurações", "Catálogo salvo com sucesso.")
+
+    # ----- Responsáveis (lista) ----- #
+    def _carregar_responsaveis(self) -> None:
+        try:
+            dados = listar_responsaveis_epi() or []
+        except Exception:
+            dados = []
+        if not hasattr(self, "cb_responsavel"):
+            self.cb_responsavel = QComboBox()
+        self.cb_responsavel.clear()
+        # Exibe como "MATRICULA - NOME" e guarda a matrícula como userData
+        for r in dados:
+            mat = r.get("matricula")
+            nome = (r.get("nome") or "").strip()
+            try:
+                mat_i = int(mat)
+            except Exception:
+                continue
+            self.cb_responsavel.addItem(f"{mat_i} - {nome}", mat_i)
+        if self.cb_responsavel.count() == 0:
+            # placeholder para indicar vazio
+            self.cb_responsavel.addItem("-- Nenhum responsável cadastrado --", None)
+
+    def _responsavel_matricula_selecionado(self) -> int:
+        try:
+            val = self.cb_responsavel.currentData()
+            return int(val) if val is not None else 0
+        except Exception:
+            return 0
+
+    def _abrir_responsaveis(self) -> None:
+        # Abre diálogo para gerenciar lista e recarrega combo ao salvar
+        try:
+            dados_atuais = listar_responsaveis_epi()
+        except Exception:
+            dados_atuais = []
+        dlg = _ResponsaveisDialog(dados_atuais, parent=self)
+        if not dlg.exec():
+            return
+        novos = dlg.get_data()
+        # Validação: matriculas únicas e >0; nome não vazio
+        mats = []
+        for r in novos:
+            try:
+                m = int(r.get("matricula"))
+            except Exception:
+                m = 0
+            n = (r.get("nome") or "").strip()
+            if m <= 0 or not n:
+                QMessageBox.warning(self, "Responsáveis", "Há linhas com matrícula inválida ou nome vazio.")
+                return
+            mats.append(m)
+        if len(set(mats)) != len(mats):
+            QMessageBox.warning(self, "Responsáveis", "Matrículas duplicadas não são permitidas.")
+            return
+        try:
+            qtd = substituir_responsaveis_epi(novos)
+        except Exception as exc:
+            QMessageBox.warning(self, "Responsáveis", f"Falha ao salvar no banco: {exc}")
+            return
+        self._carregar_responsaveis()
+        QMessageBox.information(self, "Responsáveis", f"Lista atualizada ({qtd} registros).")
 
     # ----- Catálogo (persistência no banco) ----- #
     def _carregar_catalogo_bd(self) -> None:
@@ -934,4 +1029,94 @@ class _EpisConfigDialog(QDialog):
                     valor_norm = None
             if cod or prod:
                 out.append({"codigo": cod, "produto": prod, "valor": valor_norm})
+        return out
+
+
+class _ResponsaveisDialog(QDialog):
+    """Diálogo para manter a lista de responsáveis (matrícula e nome)."""
+    def __init__(self, data: List[Dict], parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Responsáveis de EPIs")
+        # Normaliza dados de entrada
+        self._data = []
+        for d in (data or []):
+            try:
+                mat = int(d.get("matricula"))
+            except Exception:
+                mat = 0
+            nome = str(d.get("nome", "")).strip()
+            if mat > 0 or nome:
+                self._data.append({"matricula": mat if mat > 0 else "", "nome": nome})
+        self._build()
+
+    def _build(self) -> None:
+        lay = QVBoxLayout(self)
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        self.tab = QTableWidget(0, 2)
+        self.tab.setHorizontalHeaderLabels(["Matrícula", "Nome"])
+        try:
+            self.tab.horizontalHeader().setStretchLastSection(True)
+        except Exception:
+            pass
+        self.tab.setAlternatingRowColors(True)
+
+        # Validador de inteiro para matrícula
+        class _IntDelegate(QStyledItemDelegate):
+            def createEditor(self, parent, option, index):
+                ed = QLineEdit(parent)
+                ed.setValidator(QIntValidator(1, 99_999_999, ed))
+                return ed
+
+        self.tab.setItemDelegateForColumn(0, _IntDelegate(self.tab))
+
+        for row, d in enumerate(self._data):
+            self.tab.insertRow(row)
+            self.tab.setItem(row, 0, QTableWidgetItem(str(d.get("matricula", ""))))
+            self.tab.setItem(row, 1, QTableWidgetItem(str(d.get("nome", ""))))
+
+        row_btn = QHBoxLayout()
+        btn_add = QPushButton("+ Adicionar")
+        btn_del = QPushButton("Remover Selecionado")
+        btn_add.clicked.connect(self._add_row)
+        btn_del.clicked.connect(self._del_row)
+        row_btn.addWidget(btn_add)
+        row_btn.addWidget(btn_del)
+        row_btn.addStretch(1)
+
+        form.addRow("&Lista:", self.tab)
+        lay.addLayout(form)
+        lay.addLayout(row_btn)
+
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        lay.addWidget(btns)
+
+    def _add_row(self) -> None:
+        r = self.tab.rowCount()
+        self.tab.insertRow(r)
+        self.tab.setItem(r, 0, QTableWidgetItem(""))
+        self.tab.setItem(r, 1, QTableWidgetItem(""))
+
+    def _del_row(self) -> None:
+        r = self.tab.currentRow()
+        if r >= 0:
+            self.tab.removeRow(r)
+
+    def get_data(self) -> List[Dict]:
+        out: List[Dict] = []
+        for r in range(self.tab.rowCount()):
+            it_mat = self.tab.item(r, 0)
+            it_nome = self.tab.item(r, 1)
+            mat_txt = (it_mat.text() if it_mat else "").strip()
+            nome = (it_nome.text() if it_nome else "").strip()
+            # converte matrícula para int se possível
+            try:
+                mat = int(mat_txt) if mat_txt else 0
+            except Exception:
+                mat = 0
+            if mat > 0 or nome:
+                out.append({"matricula": mat, "nome": nome})
         return out

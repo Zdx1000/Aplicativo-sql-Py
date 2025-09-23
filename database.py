@@ -237,6 +237,20 @@ class EpiItemModel(Base):
     epi: Mapped[EpiModel] = relationship(back_populates="itens")
 
 
+# ---------------- Responsáveis (EPIs) ---------------- #
+
+class ResponsavelEpiModel(Base):
+    __tablename__ = "RESPONSAVEIS"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    matricula: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<ResponsavelEpi mat={self.matricula} nome={self.nome!r}>"
+
+
 # ---------------- Senha Corte ---------------- #
 
 class SenhaCorteModel(Base):
@@ -396,6 +410,20 @@ def init_db() -> None:
                 col_cfg_names = {c[1] for c in cols_cfg}
                 if "valor" not in col_cfg_names:
                     conn.exec_driver_sql("ALTER TABLE configuracoes_api ADD COLUMN valor NUMERIC(14,2)")
+        except Exception:
+            pass
+        # Garante existência da tabela RESPONSAVEIS (para EPIs)
+        try:
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS RESPONSAVEIS (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    matricula INTEGER NOT NULL UNIQUE,
+                    nome VARCHAR(255) NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
         except Exception:
             pass
 
@@ -655,6 +683,54 @@ def salvar_epi(
         except Exception:
             pass
         return cab.id
+
+
+## ---------------- Responsáveis (EPIs) - Helpers ---------------- ##
+
+def listar_responsaveis_epi() -> list[dict]:
+    """Lista os responsáveis cadastrados (matricula/nome), ordenados por nome ASC.
+
+    Retorna uma lista de dicts: {"matricula": int, "nome": str}
+    """
+    with get_session() as session:
+        try:
+            regs = (
+                session.query(ResponsavelEpiModel)
+                .order_by(ResponsavelEpiModel.nome.asc(), ResponsavelEpiModel.matricula.asc())
+                .all()
+            )
+            return [{"matricula": r.matricula, "nome": r.nome} for r in regs]
+        except Exception:
+            return []
+
+
+def substituir_responsaveis_epi(itens: list[dict]) -> int:
+    """Substitui todos os responsáveis cadastrados pelos informados em 'itens'.
+
+    Cada item deve conter: matricula (int > 0) e nome (str não vazio). Matriculas duplicadas não são permitidas.
+    Retorna a quantidade inserida.
+    """
+    norm: list[tuple[int, str]] = []
+    for it in (itens or []):
+        try:
+            mat = int(it.get("matricula"))
+        except Exception:
+            mat = 0
+        nome = str(it.get("nome", "")).strip()
+        if mat > 0 and nome:
+            # Normaliza nome: caixa alta padronizada
+            norm.append((mat, nome.upper()))
+    # Verifica duplicados por matricula
+    mats = [m for m, _ in norm]
+    if len(set(mats)) != len(mats):
+        raise ValueError("Matrículas duplicadas não são permitidas")
+    with get_session() as session:
+        session.query(ResponsavelEpiModel).delete()
+        objs = [ResponsavelEpiModel(matricula=m, nome=n) for m, n in norm]
+        if objs:
+            session.add_all(objs)
+        session.commit()
+        return len(objs)
 
 
 def salvar_senha_corte(

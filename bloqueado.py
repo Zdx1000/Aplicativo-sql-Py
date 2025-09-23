@@ -230,6 +230,11 @@ class BloqueadoPage(QWidget):
             self.btn_help_bloq.setCursor(Qt.CursorShape.PointingHandCursor)
         except Exception:
             pass
+        # Garante cantos arredondados, sobrepondo QSS genérico
+        try:
+            self.btn_help_bloq.setStyleSheet("border-radius: 25px;")
+        except Exception:
+            pass
         self.btn_help_bloq.setToolTip("Ajuda sobre a seção Bloqueado")
         self.btn_help_bloq.clicked.connect(self._mostrar_ajuda_bloqueado)
         head_layout.addWidget(self.btn_help_bloq, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)

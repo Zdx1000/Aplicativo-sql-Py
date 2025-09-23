@@ -105,7 +105,7 @@ QSS_HEADER_BLOQUEADO = """
     border: none; 
     border-radius: 2px; 
 }
-#HelpBloqueado { 
+QPushButton#HelpBloqueado { 
     padding: 10px 20px; 
     border-radius: 25px; 
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
@@ -116,12 +116,12 @@ QSS_HEADER_BLOQUEADO = """
     font-weight: 700; 
     font-size: 13px; 
 }
-#HelpBloqueado:hover { 
+QPushButton#HelpBloqueado:hover { 
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
     stop:1   #1660ba    /* branco      */
     );
 }
-#HelpBloqueado:pressed { 
+QPushButton#HelpBloqueado:pressed { 
     background: #60a5fa; 
 }
 """
@@ -132,7 +132,7 @@ QSS_HEADER_BLOQUEADO = """
 QSS_FORMULARIO_BASE = """
 QWidget { font-family: 'Segoe UI', Arial; font-size: 13px; }
 QLineEdit, QTextEdit, QComboBox { border: 1px solid #b8b8b8; border-radius: 4px; padding: 4px; }
-QLineEdit:focus, QTextEdit:focus, QComboBox:focus { border: 1px solid #007acc; background: #eef7ff; }
+QLineEdit:focus, QTextEdit:focus, QComboBox:focus { border: 1px solid #7aa7c7; }
 QPushButton { border: 1px solid #007acc; background: #007acc; color: white; padding: 6px 14px; border-radius: 4px; }
 QPushButton:hover { background: #0281d6; }
 QPushButton:pressed { background: #0063a8; }
@@ -147,9 +147,9 @@ QLabel#feedbackLabel[erro="true"] { background: #ffe8ec; color: #b00020; }
 # Onde aplica: campos, tabela e status da página de consultas.
 QSS_CONSULTAS_PAGE = """
 #PaginaConsultas QLineEdit { padding:6px 8px; }
-#TabelaConsultas { background:#ffffff; border:1px solid #b7d9ef; gridline-color:#bababa; color:#000; alternate-background-color:#e6f3fc; }
-#TabelaConsultas QHeaderView::section { background:qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #3ca4dc, stop:1 #237fb3); color:#ffffff; padding:4px 6px; border:1px solid #1d6d97; font-weight:600; }
-#StatusConsultaLabel { color:#666; padding:4px 2px; }
+#PaginaConsultas #TabelaConsultas { background:#ffffff; border:1px solid #b7d9ef; gridline-color:#bababa; color:#000; alternate-background-color:#e6f3fc; }
+#PaginaConsultas #TabelaConsultas QHeaderView::section { background:qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #3ca4dc, stop:1 #237fb3); color:#ffffff; padding:4px 6px; border:1px solid #1d6d97; font-weight:600; }
+#PaginaConsultas #StatusConsultaLabel { color:#666; padding:4px 2px; }
 """
 
 
@@ -318,6 +318,61 @@ def qss_tema_extra(modo: str) -> str:
             }
             #Slimbar #StatusLabel { color:#7fbf7f; }
             #Slimbar #VersionLabel { color:#9aa2af; }
+
+            /* Inputs (escuro) — unificar com o estilo do Bloqueado */
+            QLineEdit, QTextEdit, QPlainTextEdit, QComboBox,
+            QSpinBox, QDoubleSpinBox, QDateEdit, QDateTimeEdit, QTimeEdit {
+                background: #2b3138;
+                color: #ffffff;
+                border: 1px solid #4a515b;
+                border-radius: 6px;
+                padding: 6px 8px;
+                selection-background-color: #0b1f4a;
+                selection-color: #ffffff;
+            }
+            QLineEdit::placeholder, QTextEdit::placeholder, QPlainTextEdit::placeholder {
+                color: rgba(255,255,255,0.6);
+            }
+            QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus,
+            QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QDateTimeEdit:focus, QTimeEdit:focus {
+                background: #3a4149; /* igual foco do Bloqueado */
+                border: 1px solid #e0aa00;
+                color: #ffffff;
+            }
+            /* Popup e drop-downs coerentes */
+            QComboBox QAbstractItemView {
+                background: #2b3138;
+                color: #ffffff;
+                selection-background-color: #3a4149;
+                selection-color: #ffffff;
+                border: 1px solid #4a515b;
+            }
+            QComboBox::drop-down,
+            QDateEdit::drop-down, QDateTimeEdit::drop-down, QTimeEdit::drop-down {
+                background: #2b3138;
+                border-left: 1px solid #4a515b;
+            }
+            QSpinBox::up-button, QSpinBox::down-button,
+            QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
+                background: #2b3138;
+                border: 1px solid #4a515b;
+                border-radius: 3px;
+            }
+            /* Login/Registro também seguem o padrão no escuro */
+            QDialog#AuthDialog QLineEdit,
+            QDialog#AuthDialog QComboBox {
+                background: #2b3138;
+                color: #ffffff;
+                border: 1px solid #4a515b;
+                border-radius: 6px;
+                padding: 6px 8px;
+            }
+            QDialog#AuthDialog QLineEdit:focus,
+            QDialog#AuthDialog QComboBox:focus {
+                background: #3a4149;
+                border: 1px solid #e0aa00;
+                color: #ffffff;
+            }
             /* Header Bloqueado (override específico do modo escuro) */
             #HeaderBloqueado { 
                 /* Gradiente mais profissional (indigo → púrpura) */
@@ -356,7 +411,7 @@ def qss_tema_extra(modo: str) -> str:
                 border: none; 
                 border-radius: 2px; 
             }
-            #HelpBloqueado { 
+            QPushButton#HelpBloqueado { 
                 padding: 10px 20px; 
                 border-radius: 25px; 
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
@@ -367,12 +422,12 @@ def qss_tema_extra(modo: str) -> str:
                 font-weight: 700; 
                 font-size: 13px; 
             }
-            #HelpBloqueado:hover { 
+            QPushButton#HelpBloqueado:hover { 
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
                 stop:1   #191c24    /* branco      */
                 );
             }
-            #HelpBloqueado:pressed { 
+            QPushButton#HelpBloqueado:pressed { 
                 background: #000000; 
             }
             /* Consultas (escuro) — override exato solicitado */
@@ -385,11 +440,55 @@ def qss_tema_extra(modo: str) -> str:
             /* Páginas Bloqueado/Config: textos claros */
             #PaginaBloqueado, #PaginaBloqueado * { color:#fff; }
             #PaginaConfiguracoes, #PaginaConfiguracoes * { color:#fff; }
+            /* Páginas solicitadas: texto branco no modo escuro */
+            #PaginaGrafico, #PaginaGrafico * { color:#ffffff; }
+            #PaginaEPIs, #PaginaEPIs * { color:#ffffff; }
+            #PaginaAlmoxarifado, #PaginaAlmoxarifado * { color:#ffffff; }
+            #PaginaMonitoramento, #PaginaMonitoramento * { color:#ffffff; }
+            #PaginaSenhaCorte, #PaginaSenhaCorte * { color:#ffffff; }
+            #PaginaConsolidado, #PaginaConsolidado * { color:#ffffff; }
+            /* Consolidado: fundo cinza escuro e tabela escura no modo escuro */
+            #PaginaConsolidado { background: #1f2329; }
+            #PaginaConsolidado #TabelaConsultas {
+                background: #2b3138;
+                color: #ffffff;
+                border: 1px solid #3a4149;
+                gridline-color: #3f4751;
+                alternate-background-color: #242a31;
+            }
+            #PaginaConsolidado #TabelaConsultas QHeaderView::section {
+                background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #0f141a, stop:1 #1b2027);
+                color: #ffffff;
+                padding: 4px 6px;
+                border: 1px solid #2a2f36;
+                font-weight: 600;
+            }
+            /* Garante o título branco nos headers dessas páginas */
+            #PaginaGrafico #TituloBloqueado,
+            #PaginaEPIs #TituloBloqueado,
+            #PaginaAlmoxarifado #TituloBloqueado,
+            #PaginaMonitoramento #TituloBloqueado,
+            #PaginaSenhaCorte #TituloBloqueado,
+            #PaginaConsolidado #TituloBloqueado { color:#ffffff; }
             """
         )
     elif modo == "claro":
-        # Sem overrides: usa exatamente o QSS padrão declarado acima
-        return ""
+        # Overrides leves para inputs no claro (mantém a base mas uniformiza padding/borda)
+        return """
+        QLineEdit, QTextEdit, QPlainTextEdit, QComboBox,
+        QSpinBox, QDoubleSpinBox, QDateEdit, QDateTimeEdit, QTimeEdit {
+            background: #ffffff;
+            color: #222222;
+            border: 1px solid #b8b8b8;
+            border-radius: 6px;
+            padding: 6px 8px;
+            selection-background-color: #cfe8ff;
+            selection-color: #000000;
+        }
+        QLineEdit::placeholder, QTextEdit::placeholder, QPlainTextEdit::placeholder {
+            color: #7a7a7a;
+        }
+        """
     # Fallback
     return """
     #Slimbar { background:#ececec; border-right:1px solid #cfcfcf; }
@@ -430,7 +529,6 @@ QDialog#AuthDialog QLineEdit, QDialog#AuthDialog QComboBox {
 }
 QDialog#AuthDialog QLineEdit:focus, QDialog#AuthDialog QComboBox:focus {
     border: 1px solid #1976d2;
-    background: #eef7ff;
 }
 QDialog#AuthDialog QPushButton {
     border-radius: 8px;

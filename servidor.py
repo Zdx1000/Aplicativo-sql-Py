@@ -338,7 +338,7 @@ class MainWindow(QMainWindow):
 				self.btn_tema_claro.setChecked(True)
 		except Exception:
 			pass
-		self._selecionar_secao_inicial("Bloqueado")
+		self._selecionar_secao_inicial("Consultas")
 
 	def _montar_ui(self) -> None:
 		container = QWidget()
@@ -525,6 +525,12 @@ class MainWindow(QMainWindow):
 		lay.setSpacing(2)
 		lab_user = QLabel(f"👤  {getattr(self, 'CURRENT_USER_DISPLAY', self.CURRENT_USER)}")
 		lab_user.setObjectName("UserLabel")
+		try:
+			# Permite clique no nome do usuário para abrir o Perfil
+			lab_user.setCursor(Qt.CursorShape.PointingHandCursor)
+			lab_user.mousePressEvent = lambda e: self._abrir_perfil()
+		except Exception:
+			pass
 		lab_status = QLabel("🟢 Sistema Online")
 		lab_status.setObjectName("StatusLabel")
 		lab_version = QLabel(f"🔖 {self.APP_VERSION}")
@@ -539,6 +545,16 @@ class MainWindow(QMainWindow):
 			"version": lab_version,
 		}
 		return footer
+
+	def _abrir_perfil(self) -> None:
+		"""Abre o painel de Perfil do usuário atual."""
+		try:
+			from perfil import PerfilDialog  # type: ignore
+		except Exception as exc:
+			QMessageBox.critical(self, "Perfil", f"Módulo de perfil indisponível: {exc}")
+			return
+		dlg = PerfilDialog(self)
+		dlg.exec()
 
 	def _toggle_slimbar(self) -> None:
 		"""Alterna entre Slimbar expandida e colapsada.

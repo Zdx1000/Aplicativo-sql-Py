@@ -101,6 +101,11 @@ class MonitoramentoPage(QWidget):
         self.btn_help_mon.setObjectName("HelpBloqueado")
         self.btn_help_mon.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_help_mon.setToolTip("Ajuda sobre a seção Monitoramento")
+        # Garante cantos arredondados locais
+        try:
+            self.btn_help_mon.setStyleSheet("border-radius: 25px;")
+        except Exception:
+            pass
         self.btn_help_mon.clicked.connect(self._mostrar_ajuda_monitoramento)
         head_layout.addWidget(self.btn_help_mon, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
 
