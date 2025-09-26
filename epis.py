@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QTableWidget,
     QTableWidgetItem,
+    QHeaderView,
     QMessageBox,
     QStyledItemDelegate,
     QFrame,
@@ -928,6 +929,10 @@ class _EpisConfigDialog(QDialog):
     def __init__(self, data: List[Dict], parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Configurações de EPIs")
+        self.setObjectName("ConfigEpiDialog")
+        self.setSizeGripEnabled(True)
+        self.setModal(True)
+        self.setMinimumSize(720, 540)
         self._data = [
             {"codigo": str(d.get("codigo", "")), "produto": str(d.get("produto", "")), "valor": str(d.get("valor", "") or "")}
             for d in (data or [])
@@ -935,28 +940,87 @@ class _EpisConfigDialog(QDialog):
         self._build()
 
     def _build(self) -> None:
-        lay = QVBoxLayout(self)
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(22, 22, 22, 22)
+        root.setSpacing(18)
+
+        header = QFrame()
+        header.setObjectName("ConfigDialogHeader")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(20, 18, 20, 18)
+        header_layout.setSpacing(14)
+
+        icon = QLabel("🛠️")
+        icon.setObjectName("ConfigDialogIcon")
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(icon, 0, Qt.AlignmentFlag.AlignTop)
+
+        header_text = QWidget()
+        header_text_layout = QVBoxLayout(header_text)
+        header_text_layout.setContentsMargins(0, 0, 0, 0)
+        header_text_layout.setSpacing(6)
+
+        title = QLabel("Catálogo de EPIs")
+        title.setObjectName("ConfigDialogTitle")
+        header_text_layout.addWidget(title)
+
+        subtitle = QLabel("Personalize os códigos, descrições e valores unitários utilizados na tela de EPIs.")
+        subtitle.setObjectName("ConfigDialogSubtitle")
+        subtitle.setWordWrap(True)
+        header_text_layout.addWidget(subtitle)
+
+        header_layout.addWidget(header_text, 1)
+
+        try:
+            shadow = QGraphicsDropShadowEffect(self)
+            shadow.setBlurRadius(26)
+            shadow.setOffset(0, 6)
+            shadow.setColor(QColor(0, 0, 0, 60))
+            header.setGraphicsEffect(shadow)
+        except Exception:
+            pass
+
+        root.addWidget(header)
+
+        card = QFrame()
+        card.setObjectName("ConfigDialogCard")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(22, 20, 22, 20)
+        card_layout.setSpacing(14)
+
+        info = QLabel("Atualize a base de itens para facilitar o preenchimento na hora de registrar EPIs.")
+        info.setObjectName("ConfigDialogInfo")
+        info.setWordWrap(True)
+        card_layout.addWidget(info)
 
         self.tab = QTableWidget(0, 3)
+        self.tab.setObjectName("ConfigDialogTable")
         self.tab.setHorizontalHeaderLabels(["Código", "Produto", "Valor"])
-        self.tab.horizontalHeader().setStretchLastSection(True)
+        self.tab.verticalHeader().setVisible(False)
         self.tab.setAlternatingRowColors(True)
-        # Delegate para aceitar decimais (0-2 casas) na coluna Valor (col 2)
+        self.tab.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.tab.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.tab.setShowGrid(False)
+        header_view = self.tab.horizontalHeader()
+        header_view.setStretchLastSection(True)
+        header_view.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header_view.setSectionResizeMode(1, QHeaderView.Stretch)
+        header_view.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header_view.setHighlightSections(False)
+
         class _DecimalItemDelegate(QStyledItemDelegate):
             def createEditor(self, parent, option, index):
                 ed = QLineEdit(parent)
-                # Aceita: 10, 10.0, 10.23, 10,23
                 regex = QRegularExpression(r"^\d{1,9}([\.,]\d{1,2})?$")
                 ed.setValidator(QRegularExpressionValidator(regex, ed))
                 return ed
+
         self.tab.setItemDelegateForColumn(2, _DecimalItemDelegate(self.tab))
+
         for row, d in enumerate(self._data):
             self.tab.insertRow(row)
             self.tab.setItem(row, 0, QTableWidgetItem(d.get("codigo", "")))
             self.tab.setItem(row, 1, QTableWidgetItem(d.get("produto", "")))
-            # Valor: exibir com até 2 casas decimais (aceita vírgula)
             val_raw = str(d.get("valor", "") or "").strip()
             val_disp = ""
             if val_raw:
@@ -973,23 +1037,57 @@ class _EpisConfigDialog(QDialog):
                     val_disp = ""
             self.tab.setItem(row, 2, QTableWidgetItem(val_disp))
 
-        row_btn = QHBoxLayout()
-        btn_add = QPushButton("+ Adicionar")
-        btn_del = QPushButton("Remover Selecionado")
+        card_layout.addWidget(self.tab)
+
+        actions_row = QHBoxLayout()
+        actions_row.setSpacing(10)
+
+        btn_add = QPushButton("➕ Adicionar linha")
+        btn_add.setObjectName("ConfigDialogAdd")
+        btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_add.clicked.connect(self._add_row)
+
+        btn_del = QPushButton("🗑 Remover selecionado")
+        btn_del.setObjectName("ConfigDialogRemove")
+        btn_del.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_del.clicked.connect(self._del_row)
-        row_btn.addWidget(btn_add)
-        row_btn.addWidget(btn_del)
-        row_btn.addStretch(1)
 
-        form.addRow("&Catálogo:", self.tab)
-        lay.addLayout(form)
-        lay.addLayout(row_btn)
+        actions_row.addWidget(btn_add)
+        actions_row.addWidget(btn_del)
+        actions_row.addStretch(1)
+        card_layout.addLayout(actions_row)
 
-        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        hint = QLabel("Dica: utilize TAB para navegar entre as colunas. Mantenha o campo Valor vazio para assumir R$ 0,00.")
+        hint.setObjectName("ConfigDialogHint")
+        hint.setWordWrap(True)
+        card_layout.addWidget(hint)
+
+        try:
+            card_shadow = QGraphicsDropShadowEffect(self)
+            card_shadow.setBlurRadius(20)
+            card_shadow.setOffset(0, 4)
+            card_shadow.setColor(QColor(0, 0, 0, 45))
+            card.setGraphicsEffect(card_shadow)
+        except Exception:
+            pass
+
+        root.addWidget(card)
+
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
-        lay.addWidget(btns)
+        root.addWidget(btns)
+
+        btn_ok = btns.button(QDialogButtonBox.Save)
+        if btn_ok:
+            btn_ok.setText("Salvar catálogo")
+            btn_ok.setObjectName("ConfigDialogOk")
+            btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_cancel = btns.button(QDialogButtonBox.Cancel)
+        if btn_cancel:
+            btn_cancel.setText("Cancelar")
+            btn_cancel.setObjectName("ConfigDialogCancel")
+            btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def _add_row(self) -> None:
         r = self.tab.rowCount()
@@ -1037,6 +1135,10 @@ class _ResponsaveisDialog(QDialog):
     def __init__(self, data: List[Dict], parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Responsáveis de EPIs")
+        self.setObjectName("ResponsaveisDialog")
+        self.setSizeGripEnabled(True)
+        self.setModal(True)
+        self.setMinimumSize(620, 500)
         # Normaliza dados de entrada
         self._data = []
         for d in (data or []):
@@ -1050,19 +1152,73 @@ class _ResponsaveisDialog(QDialog):
         self._build()
 
     def _build(self) -> None:
-        lay = QVBoxLayout(self)
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(22, 22, 22, 22)
+        root.setSpacing(18)
 
-        self.tab = QTableWidget(0, 2)
-        self.tab.setHorizontalHeaderLabels(["Matrícula", "Nome"])
+        header = QFrame()
+        header.setObjectName("ConfigDialogHeader")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(20, 18, 20, 18)
+        header_layout.setSpacing(14)
+
+        icon = QLabel("🧑‍🤝‍🧑")
+        icon.setObjectName("ConfigDialogIcon")
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(icon, 0, Qt.AlignmentFlag.AlignTop)
+
+        header_text = QWidget()
+        header_text_layout = QVBoxLayout(header_text)
+        header_text_layout.setContentsMargins(0, 0, 0, 0)
+        header_text_layout.setSpacing(6)
+
+        title = QLabel("Responsáveis cadastrados")
+        title.setObjectName("ConfigDialogTitle")
+        header_text_layout.addWidget(title)
+
+        subtitle = QLabel("Cadastre as pessoas autorizadas a assinar as entregas e mantenha a lista sempre atualizada.")
+        subtitle.setObjectName("ConfigDialogSubtitle")
+        subtitle.setWordWrap(True)
+        header_text_layout.addWidget(subtitle)
+
+        header_layout.addWidget(header_text, 1)
+
         try:
-            self.tab.horizontalHeader().setStretchLastSection(True)
+            shadow = QGraphicsDropShadowEffect(self)
+            shadow.setBlurRadius(26)
+            shadow.setOffset(0, 6)
+            shadow.setColor(QColor(0, 0, 0, 60))
+            header.setGraphicsEffect(shadow)
         except Exception:
             pass
-        self.tab.setAlternatingRowColors(True)
 
-        # Validador de inteiro para matrícula
+        root.addWidget(header)
+
+        card = QFrame()
+        card.setObjectName("ConfigDialogCard")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(22, 20, 22, 20)
+        card_layout.setSpacing(14)
+
+        info = QLabel("Informe a matrícula e o nome completo exatamente como devem aparecer nos relatórios.")
+        info.setObjectName("ConfigDialogInfo")
+        info.setWordWrap(True)
+        card_layout.addWidget(info)
+
+        self.tab = QTableWidget(0, 2)
+        self.tab.setObjectName("ConfigDialogTable")
+        self.tab.setHorizontalHeaderLabels(["Matrícula", "Nome"])
+        self.tab.verticalHeader().setVisible(False)
+        self.tab.setAlternatingRowColors(True)
+        self.tab.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.tab.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.tab.setShowGrid(False)
+        header_view = self.tab.horizontalHeader()
+        header_view.setStretchLastSection(True)
+        header_view.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header_view.setSectionResizeMode(1, QHeaderView.Stretch)
+        header_view.setHighlightSections(False)
+
         class _IntDelegate(QStyledItemDelegate):
             def createEditor(self, parent, option, index):
                 ed = QLineEdit(parent)
@@ -1076,23 +1232,57 @@ class _ResponsaveisDialog(QDialog):
             self.tab.setItem(row, 0, QTableWidgetItem(str(d.get("matricula", ""))))
             self.tab.setItem(row, 1, QTableWidgetItem(str(d.get("nome", ""))))
 
-        row_btn = QHBoxLayout()
-        btn_add = QPushButton("+ Adicionar")
-        btn_del = QPushButton("Remover Selecionado")
+        card_layout.addWidget(self.tab)
+
+        actions_row = QHBoxLayout()
+        actions_row.setSpacing(10)
+
+        btn_add = QPushButton("➕ Adicionar linha")
+        btn_add.setObjectName("ConfigDialogAdd")
+        btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_add.clicked.connect(self._add_row)
+
+        btn_del = QPushButton("🗑 Remover selecionado")
+        btn_del.setObjectName("ConfigDialogRemove")
+        btn_del.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_del.clicked.connect(self._del_row)
-        row_btn.addWidget(btn_add)
-        row_btn.addWidget(btn_del)
-        row_btn.addStretch(1)
 
-        form.addRow("&Lista:", self.tab)
-        lay.addLayout(form)
-        lay.addLayout(row_btn)
+        actions_row.addWidget(btn_add)
+        actions_row.addWidget(btn_del)
+        actions_row.addStretch(1)
+        card_layout.addLayout(actions_row)
 
-        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        hint = QLabel("Dica: mantenha apenas uma entrada por matrícula. Use o atalho Ctrl+Delete para limpar uma célula rapidamente.")
+        hint.setObjectName("ConfigDialogHint")
+        hint.setWordWrap(True)
+        card_layout.addWidget(hint)
+
+        try:
+            card_shadow = QGraphicsDropShadowEffect(self)
+            card_shadow.setBlurRadius(20)
+            card_shadow.setOffset(0, 4)
+            card_shadow.setColor(QColor(0, 0, 0, 45))
+            card.setGraphicsEffect(card_shadow)
+        except Exception:
+            pass
+
+        root.addWidget(card)
+
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
-        lay.addWidget(btns)
+        root.addWidget(btns)
+
+        btn_ok = btns.button(QDialogButtonBox.Save)
+        if btn_ok:
+            btn_ok.setText("Salvar lista")
+            btn_ok.setObjectName("ConfigDialogOk")
+            btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_cancel = btns.button(QDialogButtonBox.Cancel)
+        if btn_cancel:
+            btn_cancel.setText("Cancelar")
+            btn_cancel.setObjectName("ConfigDialogCancel")
+            btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def _add_row(self) -> None:
         r = self.tab.rowCount()

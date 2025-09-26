@@ -156,108 +156,154 @@ QSS_CONSULTAS_PAGE = """
 # ---------------- QSS da Slimbar (menu lateral) ---------------- #
 # Onde aplica: menu lateral com botões e labels de status/versão.
 QSS_SLIMBAR_BASE = """
-/* Slimbar leve e simples, com faixa inteligente na direita
-    A faixa da direita é desenhada no background do Slimbar (sem border-right).
-    Quando um botão está "pressed/checked", o próprio botão cobre a faixa,
-    criando uma abertura alinhada ao botão. */
 #Slimbar {
-    /* Fundo claro simples + borda sutil à direita */
-    background: #f9fafc;
-    border:1px solid #002336
+    background: #e8eff9;
+    border-right: 1px solid #c9d5e7;
 }
 
-/* Botão topo: Toggle Menu */
 #Slimbar #ToggleMenu {
-     color: #2e3440;
-     text-align: left;
-     padding: 10px 14px;
-     margin: 6px 8px 2px 8px;
-     border: none;
-     border-radius: 10px;
-     background: #d3dfed;
+    color: #0f2646;
+    font-weight: 600;
+    text-align: left;
+    padding: 12px 20px;
+    border-radius: 14px;
+    border: 1px solid rgba(16, 52, 87, 0.08);
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #fcffff,
+        stop:1 #e5f1ff
+    );
+}
+#Slimbar #ToggleMenu[collapsed="true"] {
+    text-align: center;
+    padding: 12px;
+    border-radius: 18px;
 }
 #Slimbar #ToggleMenu:hover {
-     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-          stop:0 #e9f1ff, stop:1 #d9e7ff);
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #ffffff,
+        stop:1 #d7e8ff
+    );
+    border-color: rgba(32, 86, 142, 0.25);
 }
 
-/* Botões do menu */
-#Slimbar QPushButton {
-     color: #2e3440;
-     text-align: left;
-     padding: 10px 14px;
-     border: none;
-     border-left: 4px solid transparent; /* destaque à esquerda */
-     border-radius: 8px;
-     margin: 1px 6px;
-     background: #dae4f0; /* deixa a faixa direita visível por padrão */
-     font-weight: 500;
-}
-#Slimbar QPushButton:hover {
-     /* realce suave, mantendo a faixa visível ao passar o mouse */
-     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-          stop:0 #eef4ff, stop:1 #deebff);
-     border-left: 4px solid #4285f4;
-     color: #1a73e8;
+#Slimbar #SlimHeaderCard,
+#Slimbar #SlimNavCard,
+#Slimbar #SlimFooterCard {
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgba(9, 31, 58, 0.08);
+    border-radius: 22px;
 }
 
-/* Quando pressionado ou selecionado:
-    - usamos um gradiente horizontal que "pinta" o trecho final com a cor do corpo
-      do Slimbar (#f9fafc), cobrindo a faixa e criando a abertura alinhada ao botão. */
-#Slimbar QPushButton:pressed,
-#Slimbar QPushButton:checked {
-     background: qlineargradient(
-          x1:0, y1:0, x2:1, y2:0,
-          stop:0.0   #eaf3ff,
-          stop:0.985 #cfe3ff,
-          stop:0.986 #f9fafc,  /* cobre a faixa direita (abertura) */
-          stop:1.0   #f9fafc
-     );
-     border-left: 4px solid #1976d2;
-     color: #0d47a1;
-     font-weight: 600;
+#Slimbar #SlimHeaderCard[collapsed="true"],
+#Slimbar #SlimNavCard[collapsed="true"],
+#Slimbar #SlimFooterCard[collapsed="true"] {
+    background: transparent;
+    border-color: transparent;
+}
+
+#Slimbar QLabel#SlimSectionLabel {
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #4a678c;
+}
+
+#Slimbar QLineEdit#SlimSearchField {
+    background: rgba(233, 241, 252, 0.9);
+    border: 1px solid rgba(12, 52, 86, 0.14);
+    border-radius: 12px;
+    padding: 8px 14px;
+    color: #0f2646;
+    selection-background-color: #2a72f8;
+    selection-color: #ffffff;
+}
+#Slimbar QLineEdit#SlimSearchField:focus {
+    background: #ffffff;
+    border-color: rgba(42, 114, 248, 0.55);
+    box-shadow: 0 0 0 3px rgba(42, 114, 248, 0.15);
+}
+
+#Slimbar QLabel#SlimEmptyLabel {
+    color: #6a7f9b;
+    font-style: italic;
+    background: rgba(232, 243, 255, 0.65);
+    border-radius: 14px;
+    padding: 12px 10px;
+}
+
+#Slimbar QScrollArea#SlimNavScroll {
+    border: none;
+    background: transparent;
+}
+#Slimbar QScrollArea#SlimNavScroll QWidget {
+    background: transparent;
+}
+
+#Slimbar #SlimNavCard QPushButton {
+    color: #142a4a;
+    background: transparent;
+    text-align: left;
+    padding: 10px 16px;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    font-weight: 520;
+    margin: 2px 0;
+}
+#Slimbar #SlimNavCard QPushButton:hover {
+    background: rgba(34, 118, 227, 0.12);
+    border-color: rgba(34, 118, 227, 0.24);
+    color: #0d47a1;
+}
+#Slimbar #SlimNavCard QPushButton:checked,
+#Slimbar #SlimNavCard QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #1a73e8,
+        stop:1 #0d47a1
+    );
+    color: #ffffff;
+    border-color: transparent;
+    font-weight: 650;
+}
+#Slimbar #SlimNavCard[collapsed="true"] QPushButton {
+    padding: 12px;
+    border-radius: 18px;
+    margin: 4px 0;
+    text-align: center;
 }
 
 #PlaceholderLabel { color: #66717f; font-size: 17px; }
 
-#Slimbar #AppName { font-size: 18px; font-weight: 800; color: #1a1a1a; }
+#Slimbar #AppName { font-size: 18px; font-weight: 800; color: #14203a; }
 #Slimbar #AppSubtitle {
-     font-size: 12px;
-     color: #6c757d;
-     font-weight: 500;
+    font-size: 12px;
+    color: #5b6f86;
+    font-weight: 500;
 }
 #Slimbar #AppIcon {
-     background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #4285f4, stop:1 #1976d2);
-     border-radius: 12px;
-     padding: 6px;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #4285f4, stop:1 #1976d2);
+    border-radius: 12px;
+    padding: 6px;
 }
 
 #Slimbar #UserLabel {
-     font-size: 11px;
-     font-weight: 600;
-     color: #1976d2;
-     background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #e3f2fd, stop:1 #f3e5f5);
-     border: 2px solid #bbdefb;
-     border-radius: 10px;
-     padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1050a1;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #e3f2fd, stop:1 #f0f4ff);
+    border: 1px solid rgba(23, 78, 143, 0.18);
+    border-radius: 12px;
+    padding: 8px 12px;
 }
 #Slimbar #StatusLabel {
-     font-size: 11px;
-     color: #388e3c;
-     font-weight: 500;
+    font-size: 11px;
+    color: #2e7d32;
+    font-weight: 500;
 }
 #Slimbar #VersionLabel {
-     font-size: 10px;
-     color: #9e9e9e;
-     font-weight: 500;
-}
-
-/* Separador fino */
-#Slimbar #SlimSeparator {
-     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-          stop:0 #e0e7ff, stop:1 #c7d2fe);
-     height: 2px;
-     border-radius: 1px;
+    font-size: 10px;
+    color: #8694a6;
+    font-weight: 500;
 }
 """
 
@@ -270,54 +316,101 @@ def qss_tema_extra(modo: str) -> str:
     if modo == "escuro":
         return (
             """
-            /* Container da Slimbar (visual dark, borda sutil) */
-            #Slimbar { background:#161b22; border-right:1px solid #2a2f36; }
-            /* Toggle Menu (pílula no topo) */
-            #Slimbar #ToggleMenu { 
-                color:#e6edf3; 
-                background:rgba(255,255,255,0.06); 
-                border:1px solid #2a2f36; 
-                border-radius:10px; 
-                padding: 10px 14px;
-                margin:6px 8px 2px 8px; 
+            /* Slimbar em tema escuro */
+            #Slimbar { background:#0d1118; border-right:1px solid #1d2430; }
+            #Slimbar #ToggleMenu {
+                color:#dce6f4;
+                background:rgba(255,255,255,0.06);
+                border:1px solid rgba(99,132,177,0.26);
+                border-radius:14px;
+                padding:12px 20px;
+                text-align:left;
+                font-weight:600;
             }
-            #Slimbar #ToggleMenu:hover { background:rgba(255,255,255,0.1); }
-            /* Botões: cantos arredondados, leve preenchimento escuro */
-            #Slimbar QPushButton { 
-                color:#dbe1ea; 
-                text-align:left; 
-                padding: 10px 14px;
-                border:1px solid transparent; 
-                border-left:4px solid transparent; 
-                border-radius:8px; 
-                margin:1px 6px; 
-                background:rgba(255,255,255,0.03);
+            #Slimbar #ToggleMenu[collapsed="true"] {
+                text-align:center;
+                padding:12px;
+                border-radius:18px;
             }
-            #Slimbar QPushButton:hover { 
-                background:rgba(255,255,255,0.06); 
-                border-left:4px solid #6ea8fe; 
-                color:#ffffff; 
+            #Slimbar #ToggleMenu:hover {
+                background:rgba(255,255,255,0.12);
+                border-color:rgba(110,168,254,0.45);
             }
-            #Slimbar QPushButton:checked { 
-                background:rgba(110,168,254,0.15); 
-                border-left:4px solid #6ea8fe; 
-                color:#ffffff; 
-                font-weight:600; 
+            #Slimbar #SlimHeaderCard,
+            #Slimbar #SlimNavCard,
+            #Slimbar #SlimFooterCard {
+                background:rgba(20,27,37,0.94);
+                border:1px solid rgba(110,168,254,0.12);
+                border-radius:22px;
+            }
+            #Slimbar #SlimHeaderCard[collapsed="true"],
+            #Slimbar #SlimNavCard[collapsed="true"],
+            #Slimbar #SlimFooterCard[collapsed="true"] {
+                background:transparent;
+                border-color:transparent;
+            }
+            #Slimbar QLabel#SlimSectionLabel {
+                color:#88a2c7;
+            }
+            #Slimbar QLineEdit#SlimSearchField {
+                background:rgba(19,33,50,0.85);
+                border:1px solid rgba(116,147,196,0.25);
+                border-radius:12px;
+                padding:8px 14px;
+                color:#e4ecfb;
+                selection-background-color:#3c7bff;
+                selection-color:#ffffff;
+            }
+            #Slimbar QLineEdit#SlimSearchField:focus {
+                background:rgba(27,45,68,0.95);
+                border-color:rgba(110,168,254,0.55);
+                box-shadow:0 0 0 3px rgba(110,168,254,0.18);
+            }
+            #Slimbar QLabel#SlimEmptyLabel {
+                color:#97abc9;
+                background:rgba(35,50,71,0.65);
+            }
+            #Slimbar #SlimNavCard QPushButton {
+                color:#dce6f8;
+                background:transparent;
+                text-align:left;
+                padding:10px 16px;
+                border-radius:14px;
+                border:1px solid transparent;
+                margin:2px 0;
+                font-weight:520;
+            }
+            #Slimbar #SlimNavCard QPushButton:hover {
+                background:rgba(110,168,254,0.18);
+                border-color:rgba(110,168,254,0.35);
+                color:#f7fbff;
+            }
+            #Slimbar #SlimNavCard QPushButton:checked,
+            #Slimbar #SlimNavCard QPushButton:pressed {
+                background:qlineargradient(x1:0,y1:0,x2:1,y2:1,
+                    stop:0 #4b7fff,
+                    stop:1 #2057c8
+                );
+                color:#ffffff;
+                border-color:transparent;
+                font-weight:650;
+            }
+            #Slimbar #SlimNavCard[collapsed="true"] QPushButton {
+                padding:12px;
+                border-radius:18px;
+                text-align:center;
+                margin:4px 0;
             }
             #PlaceholderLabel { color:#9aa2af; }
-            #Slimbar #AppName { color:#e6edf3; }
-            #Slimbar #AppSubtitle { color:#9da7b3; }
-            #Slimbar #UserLabel { background:rgba(255,255,255,0.06); color:#e6edf3; border:1px solid #2a2f36; }
-            /* Reforço de caixa do UserLabel para não sumir em fundos escuros */
-            #Slimbar QLabel#UserLabel { 
-                padding: 8px 12px; 
-                border-radius: 10px; 
-                background: rgba(255,255,255,0.08); 
-                color: #e6edf3; 
-                border: 1px solid #2a2f36; 
+            #Slimbar #AppName { color:#f1f5ff; }
+            #Slimbar #AppSubtitle { color:#94a7c6; }
+            #Slimbar #UserLabel {
+                background:rgba(37,52,74,0.75);
+                color:#e6edf7;
+                border:1px solid rgba(110,168,254,0.32);
             }
-            #Slimbar #StatusLabel { color:#7fbf7f; }
-            #Slimbar #VersionLabel { color:#9aa2af; }
+            #Slimbar #StatusLabel { color:#7ad38b; }
+            #Slimbar #VersionLabel { color:#7c8caa; }
 
             /* Inputs (escuro) — unificar com o estilo do Bloqueado */
             QLineEdit, QTextEdit, QPlainTextEdit, QComboBox,
@@ -470,6 +563,227 @@ def qss_tema_extra(modo: str) -> str:
             #PaginaMonitoramento #TituloBloqueado,
             #PaginaSenhaCorte #TituloBloqueado,
             #PaginaConsolidado #TituloBloqueado { color:#ffffff; }
+            /* Diálogos de configuração (modo escuro) */
+            QDialog#ConfigEpiDialog,
+            QDialog#ResponsaveisDialog {
+                background: #11151c;
+                border: 1px solid #262c36;
+                border-radius: 22px;
+            }
+            #PaginaConfiguracoes {
+                background: #0d1117;
+            }
+            #ConfigHero {
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #121a2b, stop:1 #1c2a3f);
+                border: 1px solid #1f2b3d;
+                border-radius: 20px;
+            }
+            #ConfigHeroIcon {
+                font-size: 42px;
+            }
+            #ConfigHeroTitle {
+                color: #f5f6f8;
+                font-size: 26px;
+                font-weight: 900;
+                letter-spacing: 0.4px;
+            }
+            #ConfigHeroSubtitle {
+                color: #a9b3c3;
+                font-size: 13px;
+            }
+            #ConfigToggleWrap {
+                background: rgba(17,23,34,0.9);
+                border: 1px solid #223048;
+                border-radius: 14px;
+            }
+            #ConfigToggleLabel {
+                color: #d4dbea;
+                font-size: 12px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 1.1px;
+            }
+            QPushButton#ConfigToggleButton {
+                background: rgba(35,47,68,0.6);
+                border: 1px solid rgba(110,168,254,0.25);
+                border-radius: 10px;
+                color: #e5ecf6;
+                padding: 10px 18px;
+                font-weight: 600;
+            }
+            QPushButton#ConfigToggleButton:hover {
+                background: rgba(110,168,254,0.18);
+            }
+            QPushButton#ConfigToggleButton:checked {
+                background: rgba(110,168,254,0.32);
+                border: 1px solid #6ea8fe;
+                color: #ffffff;
+            }
+            #ConfigCard {
+                background: rgba(17,23,34,0.92);
+                border: 1px solid #1e2634;
+                border-radius: 18px;
+            }
+            #ConfigCardTitle {
+                color: #f5f6f8;
+                font-size: 18px;
+                font-weight: 800;
+            }
+            #ConfigCardSubtitle {
+                color: #94a2b8;
+                font-size: 13px;
+            }
+            QLineEdit#ConfigReadOnlyField {
+                background: rgba(255,255,255,0.05);
+                border: 1px solid #303a4a;
+                border-radius: 10px;
+                color: #dfe6f3;
+                padding: 8px 12px;
+            }
+            QPushButton#ConfigPrimaryButton {
+                background: #e0aa00;
+                border: none;
+                border-radius: 12px;
+                color: #11161f;
+                padding: 10px 20px;
+                font-weight: 800;
+            }
+            QPushButton#ConfigPrimaryButton:hover { background: #f0b800; }
+            QPushButton#ConfigPrimaryButton:pressed { background: #c99600; }
+            QPushButton#ConfigDangerButton {
+                background: #9c1f2f;
+                border: none;
+                border-radius: 12px;
+                color: #ffecef;
+                padding: 10px 18px;
+                font-weight: 700;
+            }
+            QPushButton#ConfigDangerButton:hover { background: #b32a3c; }
+            QPushButton#ConfigDangerButton:pressed { background: #7d1623; }
+            QPushButton#ConfigGhostButton {
+                background: transparent;
+                border: 1px solid #334059;
+                border-radius: 10px;
+                color: #c6d1e3;
+                padding: 9px 16px;
+                font-weight: 600;
+            }
+            QPushButton#ConfigGhostButton:hover { background: rgba(255,255,255,0.08); }
+            QPushButton#ConfigGhostButton:pressed { background: rgba(255,255,255,0.12); }
+            QPushButton#ConfigListButton {
+                background: rgba(32,41,58,0.75);
+                border: 1px solid rgba(98,123,168,0.35);
+                border-radius: 10px;
+                color: #e8eef9;
+                padding: 8px 14px;
+                text-align: left;
+                font-weight: 600;
+            }
+            QPushButton#ConfigListButton:hover { background: rgba(110,168,254,0.18); }
+            QPushButton#ConfigListButton:pressed { background: rgba(110,168,254,0.28); }
+            QScrollArea#ConfigListScroll {
+                border: 1px solid #202a3a;
+                border-radius: 14px;
+                background: rgba(14,19,28,0.65);
+            }
+            QScrollArea#ConfigListScroll QWidget {
+                background: transparent;
+            }
+            #ConfigDialogHeader {
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #1c2432, stop:1 #28374d);
+                border-radius: 18px;
+                border: 1px solid rgba(255,255,255,0.05);
+            }
+            #ConfigDialogIcon {
+                font-size: 36px;
+                color: #f5f6f8;
+            }
+            #ConfigDialogTitle {
+                font-size: 24px;
+                font-weight: 800;
+                color: #f5f6f8;
+                letter-spacing: 0.3px;
+            }
+            #ConfigDialogSubtitle {
+                color: #a9b3c3;
+                font-size: 13px;
+            }
+            #ConfigDialogCard {
+                background: rgba(18,22,30,0.95);
+                border: 1px solid #262c36;
+                border-radius: 18px;
+            }
+            QLabel#ConfigDialogInfo {
+                color: #d4dbea;
+                font-weight: 600;
+                font-size: 13px;
+            }
+            QLabel#ConfigDialogHint {
+                color: #8f9bad;
+                font-size: 12px;
+            }
+            QTableWidget#ConfigDialogTable {
+                background: #181d26;
+                color: #f3f6ff;
+                border: 1px solid #2f3540;
+                alternate-background-color: #151922;
+                gridline-color: #2f3540;
+                selection-background-color: rgba(224,170,0,0.28);
+                selection-color: #ffffff;
+            }
+            QTableWidget#ConfigDialogTable::item:selected {
+                background: rgba(224,170,0,0.34);
+                color: #ffffff;
+            }
+            QTableWidget#ConfigDialogTable QHeaderView::section {
+                background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #313d51, stop:1 #232c3a);
+                color: #f1f5ff;
+                border: none;
+                padding: 8px 12px;
+                font-weight: 600;
+            }
+            QPushButton#ConfigDialogAdd {
+                background: #1f7a47;
+                border: 1px solid #2d9f61;
+                border-radius: 10px;
+                color: #edfff3;
+                padding: 8px 16px;
+                font-weight: 600;
+            }
+            QPushButton#ConfigDialogAdd:hover { background: #2c985b; }
+            QPushButton#ConfigDialogAdd:pressed { background: #1c653c; }
+            QPushButton#ConfigDialogRemove {
+                background: #7a1f2a;
+                border: 1px solid #a63140;
+                border-radius: 10px;
+                color: #ffecef;
+                padding: 8px 16px;
+                font-weight: 600;
+            }
+            QPushButton#ConfigDialogRemove:hover { background: #98303c; }
+            QPushButton#ConfigDialogRemove:pressed { background: #6b1822; }
+            QPushButton#ConfigDialogOk {
+                background: #e0aa00;
+                border: none;
+                border-radius: 12px;
+                color: #10141d;
+                padding: 10px 20px;
+                font-weight: 800;
+                letter-spacing: 0.4px;
+            }
+            QPushButton#ConfigDialogOk:hover { background: #f0b800; }
+            QPushButton#ConfigDialogOk:pressed { background: #c99600; }
+            QPushButton#ConfigDialogCancel {
+                background: transparent;
+                border: 1px solid #3a4149;
+                border-radius: 12px;
+                color: #d2dae5;
+                padding: 10px 20px;
+                font-weight: 600;
+            }
+            QPushButton#ConfigDialogCancel:hover {
+                background: rgba(255,255,255,0.06);
+            }
             """
         )
     elif modo == "claro":
@@ -487,6 +801,227 @@ def qss_tema_extra(modo: str) -> str:
         }
         QLineEdit::placeholder, QTextEdit::placeholder, QPlainTextEdit::placeholder {
             color: #7a7a7a;
+        }
+        /* Diálogos de configuração (modo claro) */
+        QDialog#ConfigEpiDialog,
+        QDialog#ResponsaveisDialog {
+            background: #f6f9ff;
+            border: 1px solid #dce6f5;
+            border-radius: 22px;
+        }
+        #PaginaConfiguracoes {
+            background: #f5f7fb;
+        }
+        #ConfigHero {
+            background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #f1f6ff, stop:1 #e1ecff);
+            border: 1px solid #cfdcf3;
+            border-radius: 20px;
+        }
+        #ConfigHeroIcon {
+            font-size: 42px;
+        }
+        #ConfigHeroTitle {
+            color: #1c2f4a;
+            font-size: 26px;
+            font-weight: 900;
+            letter-spacing: 0.4px;
+        }
+        #ConfigHeroSubtitle {
+            color: #4a5d7a;
+            font-size: 13px;
+        }
+        #ConfigToggleWrap {
+            background: rgba(255,255,255,0.92);
+            border: 1px solid #d7e3f4;
+            border-radius: 14px;
+        }
+        #ConfigToggleLabel {
+            color: #385071;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.1px;
+        }
+        QPushButton#ConfigToggleButton {
+            background: rgba(230,238,255,0.9);
+            border: 1px solid rgba(32,123,255,0.25);
+            border-radius: 10px;
+            color: #1f3b5b;
+            padding: 10px 18px;
+            font-weight: 600;
+        }
+        QPushButton#ConfigToggleButton:hover {
+            background: rgba(32,123,255,0.16);
+        }
+        QPushButton#ConfigToggleButton:checked {
+            background: rgba(32,123,255,0.28);
+            border: 1px solid #207bff;
+            color: #0b1f4a;
+        }
+        #ConfigCard {
+            background: rgba(255,255,255,0.98);
+            border: 1px solid #dbe6f7;
+            border-radius: 18px;
+        }
+        #ConfigCardTitle {
+            color: #1b2d48;
+            font-size: 18px;
+            font-weight: 800;
+        }
+        #ConfigCardSubtitle {
+            color: #4f6383;
+            font-size: 13px;
+        }
+        QLineEdit#ConfigReadOnlyField {
+            background: rgba(246,249,255,0.9);
+            border: 1px solid #d1ddef;
+            border-radius: 10px;
+            color: #233552;
+            padding: 8px 12px;
+        }
+        QPushButton#ConfigPrimaryButton {
+            background: #f4b400;
+            border: none;
+            border-radius: 12px;
+            color: #1f2937;
+            padding: 10px 20px;
+            font-weight: 800;
+        }
+        QPushButton#ConfigPrimaryButton:hover { background: #ffca1a; }
+        QPushButton#ConfigPrimaryButton:pressed { background: #d1a200; }
+        QPushButton#ConfigDangerButton {
+            background: #c62839;
+            border: none;
+            border-radius: 12px;
+            color: #ffffff;
+            padding: 10px 18px;
+            font-weight: 700;
+        }
+        QPushButton#ConfigDangerButton:hover { background: #dd3a4e; }
+        QPushButton#ConfigDangerButton:pressed { background: #a5212f; }
+        QPushButton#ConfigGhostButton {
+            background: transparent;
+            border: 1px solid #bfd0e8;
+            border-radius: 10px;
+            color: #39506f;
+            padding: 9px 16px;
+            font-weight: 600;
+        }
+        QPushButton#ConfigGhostButton:hover { background: rgba(36,97,255,0.12); }
+        QPushButton#ConfigGhostButton:pressed { background: rgba(36,97,255,0.18); }
+        QPushButton#ConfigListButton {
+            background: rgba(235,242,255,0.92);
+            border: 1px solid rgba(32,123,255,0.2);
+            border-radius: 10px;
+            color: #1f3552;
+            padding: 8px 14px;
+            text-align: left;
+            font-weight: 600;
+        }
+        QPushButton#ConfigListButton:hover { background: rgba(32,123,255,0.18); }
+        QPushButton#ConfigListButton:pressed { background: rgba(32,123,255,0.28); }
+        QScrollArea#ConfigListScroll {
+            border: 1px solid #d6e2f6;
+            border-radius: 14px;
+            background: rgba(244,248,255,0.8);
+        }
+        QScrollArea#ConfigListScroll QWidget {
+            background: transparent;
+        }
+        #ConfigDialogHeader {
+            background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #e8f0ff, stop:1 #d4e4ff);
+            border-radius: 18px;
+            border: 1px solid rgba(15,64,128,0.08);
+        }
+        #ConfigDialogIcon {
+            font-size: 36px;
+            color: #1f3b5b;
+        }
+        #ConfigDialogTitle {
+            font-size: 24px;
+            font-weight: 800;
+            color: #10223b;
+            letter-spacing: 0.3px;
+        }
+        #ConfigDialogSubtitle {
+            color: #4c5d73;
+            font-size: 13px;
+        }
+        #ConfigDialogCard {
+            background: rgba(255,255,255,0.98);
+            border: 1px solid #d7e4f6;
+            border-radius: 18px;
+        }
+        QLabel#ConfigDialogInfo {
+            color: #203657;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        QLabel#ConfigDialogHint {
+            color: #5e728f;
+            font-size: 12px;
+        }
+        QTableWidget#ConfigDialogTable {
+            background: #ffffff;
+            color: #1f2937;
+            border: 1px solid #d7e3f4;
+            alternate-background-color: #f5f9ff;
+            gridline-color: #ccd9ed;
+            selection-background-color: rgba(32,123,255,0.16);
+            selection-color: #0b1f4a;
+        }
+        QTableWidget#ConfigDialogTable::item:selected {
+            background: rgba(32,123,255,0.22);
+            color: #0b1f4a;
+        }
+        QTableWidget#ConfigDialogTable QHeaderView::section {
+            background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #edf3ff, stop:1 #dbe6ff);
+            color: #10223b;
+            border: none;
+            padding: 8px 12px;
+            font-weight: 600;
+        }
+        QPushButton#ConfigDialogAdd {
+            background: #1a7d36;
+            border: 1px solid #239d46;
+            border-radius: 10px;
+            color: #ffffff;
+            padding: 8px 16px;
+            font-weight: 600;
+        }
+        QPushButton#ConfigDialogAdd:hover { background: #21994a; }
+        QPushButton#ConfigDialogAdd:pressed { background: #16672f; }
+        QPushButton#ConfigDialogRemove {
+            background: #c62839;
+            border: 1px solid #e03f52;
+            border-radius: 10px;
+            color: #ffffff;
+            padding: 8px 16px;
+            font-weight: 600;
+        }
+        QPushButton#ConfigDialogRemove:hover { background: #dd3a4e; }
+        QPushButton#ConfigDialogRemove:pressed { background: #a5212f; }
+        QPushButton#ConfigDialogOk {
+            background: #f4b400;
+            border: none;
+            border-radius: 12px;
+            color: #1f2937;
+            padding: 10px 20px;
+            font-weight: 800;
+            letter-spacing: 0.4px;
+        }
+        QPushButton#ConfigDialogOk:hover { background: #ffca1a; }
+        QPushButton#ConfigDialogOk:pressed { background: #d1a200; }
+        QPushButton#ConfigDialogCancel {
+            background: transparent;
+            border: 1px solid #b9c8de;
+            border-radius: 12px;
+            color: #3c4a60;
+            padding: 10px 20px;
+            font-weight: 600;
+        }
+        QPushButton#ConfigDialogCancel:hover {
+            background: rgba(36,97,255,0.08);
         }
         """
     # Fallback

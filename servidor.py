@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 try:
-	from PySide6.QtCore import Qt, QSize
+	from PySide6.QtCore import Qt, QSize, QEasingCurve, QVariantAnimation, QAbstractAnimation
 	from PySide6.QtGui import QIntValidator, QIcon, QPalette, QColor, QPixmap, QGuiApplication
 	from PySide6.QtWidgets import (
 		QApplication,
@@ -47,7 +47,8 @@ try:
 		QTableWidget,
 		QTableWidgetItem,
 		QHeaderView,
-		QAbstractScrollArea,
+	QAbstractScrollArea,
+	QStyle,
 	)
 except ImportError as exc:  # Falha clara caso dependência não esteja instalada
 	raise SystemExit(
@@ -289,7 +290,7 @@ class MainWindow(QMainWindow):
 		super().__init__()
 		self.setWindowTitle("Sistema Tech")
 		self._set_window_icon()
-		self.setMinimumSize(960, 620)
+		self.setMinimumSize(960, 920)
 		self._botoes: Dict[str, QPushButton] = {}
 		self._stack = QStackedWidget()
 		self._button_group = QButtonGroup(self)
@@ -318,6 +319,10 @@ class MainWindow(QMainWindow):
 			"Registros": "🗂️",
 			"Configurações": "⚙️",
 		}
+		self._nav_filter_cache: str = ""
+		self._slimbar_width_expandido = 248
+		self._slimbar_width_colapsado = 88
+		self._slimbar_anim: Optional[QVariantAnimation] = None
 		self.APP_NAME = "Sistema Tech"
 		self.APP_SUBTITLE = "Gestão Integrada"
 		self.APP_VERSION = "v2.1.3"
@@ -349,39 +354,63 @@ class MainWindow(QMainWindow):
 		self.slimbar = QFrame()
 		self.slimbar.setObjectName("Slimbar")
 		self._slimbar_colapsado = False
-		self.slimbar.setFixedWidth(220)  # largura padrão
+		self.slimbar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+		self._aplicar_largura_slimbar(self._slimbar_width_expandido)
 		lay_slim = QVBoxLayout(self.slimbar)
-		lay_slim.setContentsMargins(0, 0, 0, 0)
-		lay_slim.setSpacing(0)
+		lay_slim.setContentsMargins(12, 12, 12, 16)
+		lay_slim.setSpacing(12)
 
-		# Área de rolagem apenas para as seções (botões de navegação)
+		# Cartão superior com toggle e header
+		header_card = QFrame()
+		header_card.setObjectName("SlimHeaderCard")
+		header_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+		header_card_layout = QVBoxLayout(header_card)
+		header_card_layout.setContentsMargins(16, 16, 16, 16)
+		header_card_layout.setSpacing(12)
+
+		self.btn_toggle_menu = QPushButton("◀ Ocultar Menu")
+		self.btn_toggle_menu.setObjectName("ToggleMenu")
+		self.btn_toggle_menu.setCursor(Qt.CursorShape.PointingHandCursor)
+		self.btn_toggle_menu.setMinimumHeight(44)
+		self.btn_toggle_menu.setIconSize(QSize(22, 22))
+		self.btn_toggle_menu.clicked.connect(self._toggle_slimbar)
+		header_card_layout.addWidget(self.btn_toggle_menu)
+
+		header = self._criar_header()
+		header_card_layout.addWidget(header)
+		if hasattr(self, "_header_refs"):
+			self._header_refs["card"] = header_card
+		lay_slim.addWidget(header_card)
+
+		# Cartão de navegação com busca
+		nav_card = QFrame()
+		nav_card.setObjectName("SlimNavCard")
+		nav_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+		nav_card_layout = QVBoxLayout(nav_card)
+		nav_card_layout.setContentsMargins(16, 16, 16, 16)
+		nav_card_layout.setSpacing(12)
+
+		nav_label = QLabel("Navegação")
+		nav_label.setObjectName("SlimSectionLabel")
+		nav_card_layout.addWidget(nav_label)
+
+		self.ed_nav_busca = QLineEdit()
+		self.ed_nav_busca.setObjectName("SlimSearchField")
+		self.ed_nav_busca.setPlaceholderText("Filtrar seções...")
+		self.ed_nav_busca.setClearButtonEnabled(True)
+		self.ed_nav_busca.textChanged.connect(self._filtrar_botoes_navegacao)
+		nav_card_layout.addWidget(self.ed_nav_busca)
+
 		nav_scroll = QScrollArea()
+		nav_scroll.setObjectName("SlimNavScroll")
 		nav_scroll.setFrameShape(QFrame.Shape.NoFrame)
 		nav_scroll.setWidgetResizable(True)
 		nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 		nav_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-		nav_scroll.setMaximumHeight(620)
 		nav_content = QWidget()
 		lay_nav_content = QVBoxLayout(nav_content)
 		lay_nav_content.setContentsMargins(0, 8, 0, 8)
 		lay_nav_content.setSpacing(4)
-
-		# Botão de alternância (Hide/Show)
-		self.btn_toggle_menu = QPushButton("◀ Ocultar Menu")
-		self.btn_toggle_menu.setObjectName("ToggleMenu")
-		self.btn_toggle_menu.setCursor(Qt.CursorShape.PointingHandCursor)
-		self.btn_toggle_menu.clicked.connect(self._toggle_slimbar)
-		lay_slim.addWidget(self.btn_toggle_menu)
-
-		# Header
-		header = self._criar_header()
-		lay_slim.addWidget(header)
-
-		# Separador após header
-		sep_top = QFrame()
-		sep_top.setFrameShape(QFrame.Shape.HLine)
-		sep_top.setObjectName("SlimSeparator")
-		lay_slim.addWidget(sep_top)
 
 		# Botões de navegação
 		self._texto_botoes: Dict[str, str] = {}
@@ -399,15 +428,45 @@ class MainWindow(QMainWindow):
 
 		lay_nav_content.addStretch(1)
 		nav_scroll.setWidget(nav_content)
-		lay_slim.addWidget(nav_scroll, 1)
+		nav_card_layout.addWidget(nav_scroll, 1)
 
-		# Footer
-		footer_sep = QFrame()
-		footer_sep.setFrameShape(QFrame.Shape.HLine)
-		footer_sep.setObjectName("SlimSeparator")
-		lay_slim.addWidget(footer_sep)
+		self.lbl_nav_empty = QLabel("Nenhuma seção encontrada")
+		self.lbl_nav_empty.setObjectName("SlimEmptyLabel")
+		self.lbl_nav_empty.setAlignment(Qt.AlignCenter)
+		self.lbl_nav_empty.hide()
+		nav_card_layout.addWidget(self.lbl_nav_empty)
+		lay_slim.addWidget(nav_card, 1)
+
+		# Cartão de rodapé
+		footer_card = QFrame()
+		footer_card.setObjectName("SlimFooterCard")
+		footer_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+		footer_card_layout = QVBoxLayout(footer_card)
+		footer_card_layout.setContentsMargins(16, 14, 16, 16)
+		footer_card_layout.setSpacing(10)
+
 		footer = self._criar_footer()
-		lay_slim.addWidget(footer)
+		footer_card_layout.addWidget(footer)
+		if hasattr(self, "_footer_refs"):
+			self._footer_refs["card"] = footer_card
+		lay_slim.addWidget(footer_card)
+
+		# Sombras sutis para destaque visual
+		for card in (header_card, nav_card, footer_card):
+			try:
+				efeito = QGraphicsDropShadowEffect(card)
+				efeito.setBlurRadius(26 if card is header_card else 20)
+				efeito.setOffset(0, 6)
+				efeito.setColor(QColor(6, 25, 56, 38))
+				card.setGraphicsEffect(efeito)
+				setattr(card, "_shadow_effect", efeito)
+			except Exception:
+				pass
+
+		self._nav_scroll = nav_scroll
+		self._slim_nav_refs = {"label": nav_label, "search": self.ed_nav_busca, "card": nav_card}
+		self._filtrar_botoes_navegacao("")
+		self._atualizar_toggle_botao(collapsed=False)
 
 		# Páginas
 		for nome in self.SECOES:
@@ -562,34 +621,19 @@ class MainWindow(QMainWindow):
 		- Colapsada: largura ~64, botões mostram apenas ícones, header oculta textos.
 		- Expandida: largura padrão, botões mostram ícone + texto.
 		"""
-		self._slimbar_colapsado = not getattr(self, "_slimbar_colapsado", False)
-		if self._slimbar_colapsado:
-			self.slimbar.setFixedWidth(64)
-			self.btn_toggle_menu.setText("▶ Mostrar Menu")
-			# Header: mostra apenas ícone
-			if hasattr(self, "_header_refs"):
-				self._header_refs["nome"].setVisible(False)
-				self._header_refs["sub"].setVisible(False)
-				self._header_refs["icon"].setFixedSize(QSize(36, 36))
-			# Footer: reduzir visibilidade (opcional: esconder status/versão)
-			if hasattr(self, "_footer_refs"):
-				self._footer_refs["status"].setVisible(False)
-				self._footer_refs["version"].setVisible(False)
-				# Mantém o UserLabel sempre visível mesmo colapsado
-				self._footer_refs["user"].setVisible(True)
-		else:
-			self.slimbar.setFixedWidth(220)
-			self.btn_toggle_menu.setText("◀ Ocultar Menu")
-			if hasattr(self, "_header_refs"):
-				self._header_refs["nome"].setVisible(True)
-				self._header_refs["sub"].setVisible(True)
-				self._header_refs["icon"].setFixedSize(QSize(44, 44))
-			if hasattr(self, "_footer_refs"):
-				self._footer_refs["status"].setVisible(True)
-				self._footer_refs["version"].setVisible(True)
-				# Reforça o UserLabel visível ao expandir
-				self._footer_refs["user"].setVisible(True)
+		collapsed = not getattr(self, "_slimbar_colapsado", False)
+		self._slimbar_colapsado = collapsed
+		destino = self._slimbar_width_colapsado if collapsed else self._slimbar_width_expandido
+		self._animar_largura_slimbar(destino)
+		self._atualizar_toggle_botao(collapsed)
+
+		self._atualizar_header_slimbar(collapsed)
+		self._atualizar_nav_slimbar(collapsed)
+		self._atualizar_footer_slimbar(collapsed)
 		self._update_slimbar_labels()
+		if not collapsed:
+			# Reaplica filtro ao expandir para restaurar estado visual
+			self._filtrar_botoes_navegacao(self._nav_filter_cache)
 
 	def _update_slimbar_labels(self) -> None:
 		"""Atualiza o texto dos botões da Slimbar conforme estado (colapsado/expandido)."""
@@ -602,62 +646,279 @@ class MainWindow(QMainWindow):
 			else:
 				btn.setText(self._texto_botoes.get(nome, f"{icon}  {nome}"))
 				btn.setToolTip("")
+			btn.setProperty("collapsed", self._slimbar_colapsado)
+			self._refresh_widget_style(btn)
+
+	def _atualizar_header_slimbar(self, collapsed: bool) -> None:
+		refs = getattr(self, "_header_refs", None)
+		if not refs:
+			return
+		refs["nome"].setVisible(not collapsed)
+		refs["sub"].setVisible(not collapsed)
+		tamanho = 36 if collapsed else 44
+		refs["icon"].setFixedSize(QSize(tamanho, tamanho))
+		self._set_card_visual_state(refs.get("card"), collapsed)
+
+	def _atualizar_nav_slimbar(self, collapsed: bool) -> None:
+		refs = getattr(self, "_slim_nav_refs", None)
+		if not refs:
+			return
+		refs["label"].setVisible(not collapsed)
+		refs["search"].setVisible(not collapsed)
+		if collapsed and hasattr(self, "lbl_nav_empty"):
+			self.lbl_nav_empty.setVisible(False)
+		self._set_card_visual_state(refs.get("card"), collapsed)
+		if hasattr(self, "_nav_scroll"):
+			politica = Qt.ScrollBarAlwaysOff if collapsed else Qt.ScrollBarAsNeeded
+			self._nav_scroll.setVerticalScrollBarPolicy(politica)
+
+	def _atualizar_footer_slimbar(self, collapsed: bool) -> None:
+		refs = getattr(self, "_footer_refs", None)
+		if not refs:
+			return
+		refs["status"].setVisible(not collapsed)
+		refs["version"].setVisible(not collapsed)
+		refs["user"].setVisible(True)
+		self._set_card_visual_state(refs.get("card"), collapsed)
+
+	def _filtrar_botoes_navegacao(self, texto: str) -> None:
+		if not hasattr(self, "_nav_scroll"):
+			return
+		termo = (texto or "").strip().lower()
+		self._nav_filter_cache = termo
+		existe_visivel = False
+		for nome, btn in self._botoes.items():
+			base_label = self._texto_botoes.get(nome, nome)
+			comparacao = base_label.lower()
+			nome_lower = nome.lower()
+			match = not termo or termo in comparacao or termo in nome_lower
+			btn.setVisible(match)
+			if match:
+				existe_visivel = True
+		if hasattr(self, "lbl_nav_empty"):
+			if self._slimbar_colapsado:
+				self.lbl_nav_empty.setVisible(False)
+			else:
+				self.lbl_nav_empty.setVisible(not existe_visivel)
+		self._nav_scroll.setVisible(existe_visivel or self._slimbar_colapsado)
+
+	def _refresh_widget_style(self, widget: Optional[QWidget]) -> None:
+		if widget is None:
+			return
+		style = widget.style()
+		if style is None:
+			return
+		style.unpolish(widget)
+		style.polish(widget)
+		widget.update()
+
+	def _set_card_shadow_enabled(self, card: Optional[QWidget], enabled: bool) -> None:
+		if card is None:
+			return
+		efeito = getattr(card, "_shadow_effect", None)
+		if efeito is None or efeito.parent() is None:
+			if not enabled:
+				return
+			try:
+				nome = card.objectName() if hasattr(card, "objectName") else ""
+				efeito = QGraphicsDropShadowEffect(card)
+				efeito.setBlurRadius(26 if nome == "SlimHeaderCard" else 20)
+				efeito.setOffset(0, 6)
+				efeito.setColor(QColor(6, 25, 56, 38))
+				card.setGraphicsEffect(efeito)
+				setattr(card, "_shadow_effect", efeito)
+			except Exception:
+				return
+		if efeito is not card.graphicsEffect():
+			card.setGraphicsEffect(efeito)
+		efeito.setEnabled(enabled)
+
+	def _set_card_visual_state(self, card: Optional[QWidget], collapsed: bool) -> None:
+		if card is None:
+			return
+		card.setProperty("collapsed", collapsed)
+		self._refresh_widget_style(card)
+		self._set_card_shadow_enabled(card, not collapsed)
+
+	def _aplicar_largura_slimbar(self, largura: int) -> None:
+		self.slimbar.setMinimumWidth(largura)
+		self.slimbar.setMaximumWidth(largura)
+		self.slimbar.updateGeometry()
+
+	def _animar_largura_slimbar(self, largura_final: int) -> None:
+		atual = self.slimbar.width()
+		if atual == largura_final:
+			self._aplicar_largura_slimbar(largura_final)
+			return
+		anim = getattr(self, "_slimbar_anim", None)
+		if anim and anim.state() == QAbstractAnimation.State.Running:
+			anim.stop()
+		anim = QVariantAnimation(self)
+		anim.setStartValue(atual)
+		anim.setEndValue(largura_final)
+		anim.setDuration(260)
+		anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+
+		def _on_value(valor: object) -> None:
+			try:
+				width = int(valor)
+			except (TypeError, ValueError):
+				width = int(float(valor)) if isinstance(valor, (float, str)) else largura_final
+			self._aplicar_largura_slimbar(width)
+
+		anim.valueChanged.connect(_on_value)
+
+		def _on_finished() -> None:
+			self._aplicar_largura_slimbar(largura_final)
+			self._slimbar_anim = None
+
+		anim.finished.connect(_on_finished)
+		self._slimbar_anim = anim
+		anim.start()
+
+	def _atualizar_toggle_botao(self, collapsed: bool) -> None:
+		btn = getattr(self, "btn_toggle_menu", None)
+		if btn is None:
+			return
+		style = self.style()
+		if style is None:
+			return
+		icon_type = QStyle.StandardPixmap.SP_ArrowRight if collapsed else QStyle.StandardPixmap.SP_ArrowLeft
+		btn.setIcon(style.standardIcon(icon_type))
+		if collapsed:
+			btn.setText("")
+			btn.setToolTip("Mostrar menu")
+		else:
+			btn.setText("Ocultar menu")
+			btn.setToolTip("Recolher menu")
+		btn.setProperty("collapsed", collapsed)
+		self._refresh_widget_style(btn)
 
 	def _criar_configuracoes(self) -> QWidget:
 		w = QWidget()
 		w.setObjectName("PaginaConfiguracoes")
 		lay = QVBoxLayout(w)
-		lay.setContentsMargins(40, 30, 40, 30)
-		lay.setSpacing(24)
+		lay.setContentsMargins(36, 28, 36, 36)
+		lay.setSpacing(22)
 
-		# Seção Alterar Tema
-		sec_tema = QFrame()
-		sec_tema.setObjectName("SecaoTema")
-		ltema = QVBoxLayout(sec_tema)
-		ltema.setSpacing(8)
-		lab_tema = QLabel("Tema")
-		lab_tema.setObjectName("SectionTitle")
-		# Botões de modo: Sistêmico, Claro, Escuro (modo Normal removido conforme solicitação)
-		self.btn_tema_claro = QPushButton("Claro")
-		self.btn_tema_escuro = QPushButton("Escuro")
+		hero = QFrame()
+		hero.setObjectName("ConfigHero")
+		hero_layout = QHBoxLayout(hero)
+		hero_layout.setContentsMargins(26, 24, 26, 24)
+		hero_layout.setSpacing(18)
+
+		hero_icon = QLabel("⚙️")
+		hero_icon.setObjectName("ConfigHeroIcon")
+		hero_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+		hero_layout.addWidget(hero_icon, 0, Qt.AlignmentFlag.AlignTop)
+
+		hero_text = QWidget()
+		hero_text_layout = QVBoxLayout(hero_text)
+		hero_text_layout.setContentsMargins(0, 0, 0, 0)
+		hero_text_layout.setSpacing(6)
+
+		title = QLabel("Configurações gerais")
+		title.setObjectName("ConfigHeroTitle")
+		hero_text_layout.addWidget(title)
+
+		subtitle = QLabel("Personalize o visual do aplicativo, atualize sua senha e gerencie usuários quando necessário.")
+		subtitle.setWordWrap(True)
+		subtitle.setObjectName("ConfigHeroSubtitle")
+		hero_text_layout.addWidget(subtitle)
+
+		hero_layout.addWidget(hero_text, 1)
+
+		toggle_wrap = QFrame()
+		toggle_wrap.setObjectName("ConfigToggleWrap")
+		toggle_layout = QVBoxLayout(toggle_wrap)
+		toggle_layout.setContentsMargins(14, 12, 14, 12)
+		toggle_layout.setSpacing(10)
+
+		toggle_label = QLabel("Tema da interface")
+		toggle_label.setObjectName("ConfigToggleLabel")
+		toggle_layout.addWidget(toggle_label)
+
+		btn_row = QHBoxLayout()
+		btn_row.setSpacing(10)
+		self.btn_tema_claro = QPushButton("☀️ Claro")
+		self.btn_tema_claro.setObjectName("ConfigToggleButton")
+		self.btn_tema_escuro = QPushButton("🌙 Escuro")
+		self.btn_tema_escuro.setObjectName("ConfigToggleButton")
 		for b in (self.btn_tema_claro, self.btn_tema_escuro):
 			b.setCheckable(True)
-		linha_tema = QHBoxLayout()
-		linha_tema.addWidget(self.btn_tema_claro)
-		linha_tema.addWidget(self.btn_tema_escuro)
-		linha_tema.addStretch(1)
-		ltema.addWidget(lab_tema)
-		ltema.addLayout(linha_tema)
+			b.setCursor(Qt.CursorShape.PointingHandCursor)
+		btn_row.addWidget(self.btn_tema_claro)
+		btn_row.addWidget(self.btn_tema_escuro)
+		btn_row.addStretch(1)
+		toggle_layout.addLayout(btn_row)
+
+		self._grupo_tema = QButtonGroup(toggle_wrap)
+		self._grupo_tema.setExclusive(True)
+		self._grupo_tema.addButton(self.btn_tema_claro)
+		self._grupo_tema.addButton(self.btn_tema_escuro)
+
 		self.btn_tema_claro.clicked.connect(lambda: self._aplicar_tema_global("claro"))
 		self.btn_tema_escuro.clicked.connect(lambda: self._aplicar_tema_global("escuro"))
 
-		# Seção Alterar Senha
-		sec_senha = QFrame()
-		sec_senha.setObjectName("SecaoSenha")
-		lsenha = QVBoxLayout(sec_senha)
-		lsenha.setSpacing(8)
-		lab_senha = QLabel("Alterar Senha")
-		lab_senha.setObjectName("SectionTitle")
+		hero_layout.addWidget(toggle_wrap, 0, Qt.AlignmentFlag.AlignTop)
+
+		try:
+			hero_shadow = QGraphicsDropShadowEffect(self)
+			hero_shadow.setBlurRadius(30)
+			hero_shadow.setOffset(0, 8)
+			hero_shadow.setColor(QColor(0, 0, 0, 55))
+			hero.setGraphicsEffect(hero_shadow)
+		except Exception:
+			pass
+
+		lay.addWidget(hero)
+
+		senha_card = QFrame()
+		senha_card.setObjectName("ConfigCard")
+		senha_layout = QVBoxLayout(senha_card)
+		senha_layout.setContentsMargins(24, 22, 24, 24)
+		senha_layout.setSpacing(14)
+
+		lab_senha = QLabel("Alterar senha")
+		lab_senha.setObjectName("ConfigCardTitle")
+		senha_layout.addWidget(lab_senha)
+
+		lab_senha_desc = QLabel("Defina uma nova senha segura para sua conta. A senha precisa ter no mínimo 6 caracteres.")
+		lab_senha_desc.setWordWrap(True)
+		lab_senha_desc.setObjectName("ConfigCardSubtitle")
+		senha_layout.addWidget(lab_senha_desc)
+
 		form = QFormLayout()
+		form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+		form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+		form.setHorizontalSpacing(16)
+		form.setVerticalSpacing(10)
 		self.ed_senha_atual = QLineEdit()
 		self.ed_senha_atual.setEchoMode(QLineEdit.EchoMode.Password)
+		self.ed_senha_atual.setPlaceholderText("Digite a senha atual")
 		self.ed_nova_senha = QLineEdit()
 		self.ed_nova_senha.setEchoMode(QLineEdit.EchoMode.Password)
+		self.ed_nova_senha.setPlaceholderText("Nova senha")
 		self.ed_conf_nova = QLineEdit()
 		self.ed_conf_nova.setEchoMode(QLineEdit.EchoMode.Password)
+		self.ed_conf_nova.setPlaceholderText("Confirme a nova senha")
 		form.addRow("Senha atual:", self.ed_senha_atual)
 		form.addRow("Nova senha:", self.ed_nova_senha)
 		form.addRow("Confirmar nova:", self.ed_conf_nova)
-		btn_salvar_senha = QPushButton("Salvar Senha")
+		senha_layout.addLayout(form)
+
+		btn_row = QHBoxLayout()
+		btn_row.setSpacing(12)
+		btn_row.addStretch(1)
+		btn_salvar_senha = QPushButton("Salvar nova senha")
+		btn_salvar_senha.setObjectName("ConfigPrimaryButton")
+		btn_salvar_senha.setCursor(Qt.CursorShape.PointingHandCursor)
 		btn_salvar_senha.clicked.connect(self._alterar_senha)
-		lsenha.addWidget(lab_senha)
-		lsenha.addLayout(form)
-		lsenha.addWidget(btn_salvar_senha, 0, Qt.AlignmentFlag.AlignLeft)
+		btn_row.addWidget(btn_salvar_senha)
+		senha_layout.addLayout(btn_row)
 
-		lay.addWidget(sec_tema)
-		lay.addWidget(sec_senha)
+		lay.addWidget(senha_card)
 
-		# Seção administrativa (somente ADMINISTRADOR)
 		try:
 			from database import obter_tipo_usuario_atual
 			is_admin = obter_tipo_usuario_atual() == "ADMINISTRADOR"
@@ -665,52 +926,79 @@ class MainWindow(QMainWindow):
 			is_admin = False
 		if is_admin:
 			lay.addWidget(self._criar_secao_admin())
+
 		lay.addStretch(1)
+
+		modo_atual = getattr(self, "_tema_atual", "claro")
+		if modo_atual == "escuro":
+			self.btn_tema_escuro.setChecked(True)
+		else:
+			self.btn_tema_claro.setChecked(True)
+
 		return w
 
 	def _criar_secao_admin(self) -> QWidget:
 		"""Cria seção de administração de usuários (lista + ações)."""
 		wrap = QFrame()
-		wrap.setObjectName("SecaoAdminUsuarios")
+		wrap.setObjectName("ConfigCard")
 		lv = QVBoxLayout(wrap)
-		lv.setSpacing(8)
-		lab = QLabel("Usuários (USUARIO)")
-		lab.setObjectName("SectionTitle")
+		lv.setContentsMargins(24, 22, 24, 24)
+		lv.setSpacing(14)
+
+		lab = QLabel("Gerenciamento de usuários")
+		lab.setObjectName("ConfigCardTitle")
 		lv.addWidget(lab)
-		# Container scroll
+
+		desc = QLabel("Visualize usuários do tipo USUARIO, redefina senhas ou remova contas quando necessário.")
+		desc.setWordWrap(True)
+		desc.setObjectName("ConfigCardSubtitle")
+		lv.addWidget(desc)
+
 		self.scroll_users = QScrollArea()
+		self.scroll_users.setObjectName("ConfigListScroll")
 		self.scroll_users.setWidgetResizable(True)
-		self.scroll_users.setFixedHeight(160)  # ~4 itens (ajustável)
+		self.scroll_users.setFrameShape(QFrame.Shape.NoFrame)
+		self.scroll_users.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+		self.scroll_users.setMinimumHeight(180)
 		cont = QWidget()
 		self.layout_users = QVBoxLayout(cont)
-		self.layout_users.setSpacing(4)
-		self.layout_users.setContentsMargins(0,0,0,0)
+		self.layout_users.setSpacing(6)
+		self.layout_users.setContentsMargins(0, 0, 0, 0)
 		self.scroll_users.setWidget(cont)
 		lv.addWidget(self.scroll_users)
-		# Ações sobre usuário selecionado
+
 		linha_sel = QHBoxLayout()
+		linha_sel.setSpacing(10)
 		self.ed_usuario_sel = QLineEdit()
-		self.ed_usuario_sel.setPlaceholderText("Usuário selecionado...")
+		self.ed_usuario_sel.setPlaceholderText("Selecione um usuário na lista")
 		self.ed_usuario_sel.setReadOnly(True)
+		self.ed_usuario_sel.setObjectName("ConfigReadOnlyField")
 		linha_sel.addWidget(self.ed_usuario_sel)
-		btn_refresh = QPushButton("↻")
-		btn_refresh.setToolTip("Recarregar lista")
+		btn_refresh = QPushButton("Atualizar lista")
+		btn_refresh.setObjectName("ConfigGhostButton")
+		btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
 		btn_refresh.clicked.connect(self._carregar_usuarios_admin)
-		linha_sel.addWidget(btn_refresh)
+		linha_sel.addWidget(btn_refresh, 0)
 		lv.addLayout(linha_sel)
+
 		linha_acoes = QHBoxLayout()
+		linha_acoes.setSpacing(10)
 		self.ed_nova_senha_admin = QLineEdit()
-		self.ed_nova_senha_admin.setPlaceholderText("Nova senha p/ usuário")
+		self.ed_nova_senha_admin.setPlaceholderText("Nova senha para o usuário selecionado")
 		self.ed_nova_senha_admin.setEchoMode(QLineEdit.EchoMode.Password)
-		btn_redef = QPushButton("Redefinir Senha")
-		btn_redef.clicked.connect(self._redefinir_senha_usuario)
-		btn_excluir = QPushButton("Excluir Usuário")
-		btn_excluir.setObjectName("danger")
-		btn_excluir.clicked.connect(self._excluir_usuario)
 		linha_acoes.addWidget(self.ed_nova_senha_admin, 1)
+		btn_redef = QPushButton("Redefinir senha")
+		btn_redef.setObjectName("ConfigPrimaryButton")
+		btn_redef.setCursor(Qt.CursorShape.PointingHandCursor)
+		btn_redef.clicked.connect(self._redefinir_senha_usuario)
+		btn_excluir = QPushButton("Excluir usuário")
+		btn_excluir.setObjectName("ConfigDangerButton")
+		btn_excluir.setCursor(Qt.CursorShape.PointingHandCursor)
+		btn_excluir.clicked.connect(self._excluir_usuario)
 		linha_acoes.addWidget(btn_redef)
 		linha_acoes.addWidget(btn_excluir)
 		lv.addLayout(linha_acoes)
+
 		self._carregar_usuarios_admin()
 		return wrap
 
@@ -730,6 +1018,7 @@ class MainWindow(QMainWindow):
 			return
 		for u in usuarios:
 			btn = QPushButton(u["username"])
+			btn.setObjectName("ConfigListButton")
 			btn.setCheckable(False)
 			btn.setCursor(Qt.CursorShape.PointingHandCursor)
 			btn.clicked.connect(lambda _=False, nome=u["username"]: self._selecionar_usuario_admin(nome))
@@ -800,11 +1089,13 @@ class MainWindow(QMainWindow):
 		elif modo == "claro":
 			self._ativar_tema_claro()
 			self.btn_tema_claro.setChecked(True)
+		self._tema_atual = modo
 
 	def _ativar_tema_escuro(self) -> None:
 		QApplication.instance().setPalette(build_palette_escuro())
 		self._atualizar_estilos_tema("escuro")
 		self._ajustar_focus_bloqueado("escuro")
+		self._tema_atual = "escuro"
 		# Atualiza tema da página de gráficos, se existir
 		try:
 			for i in range(self._stack.count()):
@@ -819,6 +1110,7 @@ class MainWindow(QMainWindow):
 		QApplication.instance().setPalette(build_palette_claro())
 		self._atualizar_estilos_tema("claro")
 		self._ajustar_focus_bloqueado("claro")
+		self._tema_atual = "claro"
 		# Atualiza tema da página de gráficos, se existir
 		try:
 			for i in range(self._stack.count()):
