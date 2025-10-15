@@ -949,7 +949,7 @@ class MainWindow(QMainWindow):
 		lab.setObjectName("ConfigCardTitle")
 		lv.addWidget(lab)
 
-		desc = QLabel("Visualize usuários do tipo USUARIO, redefina senhas ou remova contas quando necessário.")
+		desc = QLabel("Visualize usuários e administradores. Ações são permitidas apenas para contas padrão.")
 		desc.setWordWrap(True)
 		desc.setObjectName("ConfigCardSubtitle")
 		lv.addWidget(desc)
@@ -974,11 +974,11 @@ class MainWindow(QMainWindow):
 		self.ed_usuario_sel.setReadOnly(True)
 		self.ed_usuario_sel.setObjectName("ConfigReadOnlyField")
 		linha_sel.addWidget(self.ed_usuario_sel)
-		btn_refresh = QPushButton("Atualizar lista")
-		btn_refresh.setObjectName("ConfigGhostButton")
-		btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
-		btn_refresh.clicked.connect(self._carregar_usuarios_admin)
-		linha_sel.addWidget(btn_refresh, 0)
+		self.btn_refresh_users = QPushButton("Atualizar lista")
+		self.btn_refresh_users.setObjectName("ConfigGhostButton")
+		self.btn_refresh_users.setCursor(Qt.CursorShape.PointingHandCursor)
+		self.btn_refresh_users.clicked.connect(self._carregar_usuarios_admin)
+		linha_sel.addWidget(self.btn_refresh_users, 0)
 		lv.addLayout(linha_sel)
 
 		linha_acoes = QHBoxLayout()
@@ -987,17 +987,21 @@ class MainWindow(QMainWindow):
 		self.ed_nova_senha_admin.setPlaceholderText("Nova senha para o usuário selecionado")
 		self.ed_nova_senha_admin.setEchoMode(QLineEdit.EchoMode.Password)
 		linha_acoes.addWidget(self.ed_nova_senha_admin, 1)
-		btn_redef = QPushButton("Redefinir senha")
-		btn_redef.setObjectName("ConfigPrimaryButton")
-		btn_redef.setCursor(Qt.CursorShape.PointingHandCursor)
-		btn_redef.clicked.connect(self._redefinir_senha_usuario)
-		btn_excluir = QPushButton("Excluir usuário")
-		btn_excluir.setObjectName("ConfigDangerButton")
-		btn_excluir.setCursor(Qt.CursorShape.PointingHandCursor)
-		btn_excluir.clicked.connect(self._excluir_usuario)
-		linha_acoes.addWidget(btn_redef)
-		linha_acoes.addWidget(btn_excluir)
+		self.btn_redef_user = QPushButton("Redefinir senha")
+		self.btn_redef_user.setObjectName("ConfigPrimaryButton")
+		self.btn_redef_user.setCursor(Qt.CursorShape.PointingHandCursor)
+		self.btn_redef_user.clicked.connect(self._redefinir_senha_usuario)
+		self.btn_excluir_user = QPushButton("Excluir usuário")
+		self.btn_excluir_user.setObjectName("ConfigDangerButton")
+		self.btn_excluir_user.setCursor(Qt.CursorShape.PointingHandCursor)
+		self.btn_excluir_user.clicked.connect(self._excluir_usuario)
+		linha_acoes.addWidget(self.btn_redef_user)
+		linha_acoes.addWidget(self.btn_excluir_user)
 		lv.addLayout(linha_acoes)
+		self._placeholder_nova_senha_admin = self.ed_nova_senha_admin.placeholderText()
+		self._placeholder_nova_senha_disabled = "Selecione um usuário padrão para habilitar as ações"
+		self._usuario_sel_tipo = ""
+		self._reset_admin_selection()
 
 		self._carregar_usuarios_admin()
 		return wrap
@@ -1011,27 +1015,73 @@ class MainWindow(QMainWindow):
 				w.deleteLater()
 		try:
 			from database import listar_usuarios
-			usuarios = listar_usuarios(tipo="USUARIO")
+			usuarios = listar_usuarios()
 		except Exception as exc:  # pragma: no cover
 			lab_err = QLabel(f"Erro ao carregar usuários: {exc}")
 			self.layout_users.addWidget(lab_err)
+			self._reset_admin_selection()
+			return
+		if not usuarios:
+			lab_vazio = QLabel("Nenhum usuário encontrado.")
+			lab_vazio.setObjectName("ConfigEmptyLabel")
+			lab_vazio.setAlignment(Qt.AlignmentFlag.AlignCenter)
+			self.layout_users.addWidget(lab_vazio)
+			self._reset_admin_selection()
 			return
 		for u in usuarios:
-			btn = QPushButton(u["username"])
-			btn.setObjectName("ConfigListButton")
+			nome_display = f"{u['username']}  ·  {u['tipo'].title()}"
+			btn = QPushButton(nome_display)
+			eh_admin = u["tipo"].upper() == "ADMINISTRADOR"
+			btn.setObjectName("ConfigListButtonAdmin" if eh_admin else "ConfigListButton")
 			btn.setCheckable(False)
 			btn.setCursor(Qt.CursorShape.PointingHandCursor)
-			btn.clicked.connect(lambda _=False, nome=u["username"]: self._selecionar_usuario_admin(nome))
+			btn.clicked.connect(
+				lambda _=False, nome=u["username"], tipo=u["tipo"]: self._selecionar_usuario_admin(nome, tipo)
+			)
 			self.layout_users.addWidget(btn)
 		self.layout_users.addStretch(1)
+		self._reset_admin_selection()
 
-	def _selecionar_usuario_admin(self, username: str) -> None:
-		self.ed_usuario_sel.setText(username)
+	def _selecionar_usuario_admin(self, username: str, tipo: str) -> None:
+		self._usuario_sel_tipo = tipo.upper()
+		if self._usuario_sel_tipo == "ADMINISTRADOR":
+			self.ed_usuario_sel.setText(f"{username} · Administrador")
+			self._configurar_acoes_usuario("ADMINISTRADOR")
+		else:
+			self.ed_usuario_sel.setText(username)
+			self._configurar_acoes_usuario("USUARIO")
+
+	def _configurar_acoes_usuario(self, tipo: str) -> None:
+		if tipo == "USUARIO":
+			self.ed_nova_senha_admin.setEnabled(True)
+			self.ed_nova_senha_admin.setPlaceholderText(self._placeholder_nova_senha_admin)
+			self.btn_redef_user.setEnabled(True)
+			self.btn_excluir_user.setEnabled(True)
+		elif tipo == "ADMINISTRADOR":
+			self.ed_nova_senha_admin.clear()
+			self.ed_nova_senha_admin.setEnabled(False)
+			self.ed_nova_senha_admin.setPlaceholderText("Administradores: apenas visualização")
+			self.btn_redef_user.setEnabled(False)
+			self.btn_excluir_user.setEnabled(False)
+		else:
+			self.ed_nova_senha_admin.clear()
+			self.ed_nova_senha_admin.setEnabled(False)
+			self.ed_nova_senha_admin.setPlaceholderText(self._placeholder_nova_senha_disabled)
+			self.btn_redef_user.setEnabled(False)
+			self.btn_excluir_user.setEnabled(False)
+
+	def _reset_admin_selection(self) -> None:
+		self._usuario_sel_tipo = ""
+		self.ed_usuario_sel.clear()
+		self._configurar_acoes_usuario("NONE")
 
 	def _redefinir_senha_usuario(self) -> None:
 		user_alvo = self.ed_usuario_sel.text().strip()
 		if not user_alvo:
 			QMessageBox.warning(self, "Aviso", "Selecione um usuário.")
+			return
+		if getattr(self, "_usuario_sel_tipo", "USUARIO") != "USUARIO":
+			QMessageBox.information(self, "Informação", "Administradores não podem ser alterados por este painel.")
 			return
 		nova = self.ed_nova_senha_admin.text()
 		if not nova:
@@ -1056,6 +1106,9 @@ class MainWindow(QMainWindow):
 		user_alvo = self.ed_usuario_sel.text().strip()
 		if not user_alvo:
 			QMessageBox.warning(self, "Aviso", "Selecione um usuário.")
+			return
+		if getattr(self, "_usuario_sel_tipo", "USUARIO") != "USUARIO":
+			QMessageBox.information(self, "Informação", "Somente usuários padrão podem ser excluídos por aqui.")
 			return
 		if user_alvo == self.CURRENT_USER:
 			QMessageBox.warning(self, "Aviso", "Não é possível excluir o próprio usuário logado.")

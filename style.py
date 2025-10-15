@@ -681,6 +681,17 @@ def qss_tema_extra(modo: str) -> str:
             }
             QPushButton#ConfigListButton:hover { background: rgba(110,168,254,0.18); }
             QPushButton#ConfigListButton:pressed { background: rgba(110,168,254,0.28); }
+            QPushButton#ConfigListButtonAdmin {
+                background: rgba(255,206,84,0.22);
+                border: 1px solid rgba(255,215,128,0.45);
+                border-radius: 10px;
+                color: #ffeca8;
+                padding: 8px 14px;
+                text-align: left;
+                font-weight: 600;
+            }
+            QPushButton#ConfigListButtonAdmin:hover { background: rgba(255,206,84,0.32); }
+            QPushButton#ConfigListButtonAdmin:pressed { background: rgba(255,206,84,0.4); }
             QScrollArea#ConfigListScroll {
                 border: 1px solid #202a3a;
                 border-radius: 14px;
@@ -721,6 +732,12 @@ def qss_tema_extra(modo: str) -> str:
             QLabel#ConfigDialogHint {
                 color: #8f9bad;
                 font-size: 12px;
+            }
+            QLabel#ConfigEmptyLabel {
+                color: #9ba9c4;
+                font-style: italic;
+                padding: 12px 0;
+                text-align: center;
             }
             QTableWidget#ConfigDialogTable {
                 background: #181d26;
@@ -920,6 +937,17 @@ def qss_tema_extra(modo: str) -> str:
         }
         QPushButton#ConfigListButton:hover { background: rgba(32,123,255,0.18); }
         QPushButton#ConfigListButton:pressed { background: rgba(32,123,255,0.28); }
+        QPushButton#ConfigListButtonAdmin {
+            background: rgba(255,248,205,0.98);
+            border: 1px solid rgba(255,193,7,0.4);
+            border-radius: 10px;
+            color: #7a4f00;
+            padding: 8px 14px;
+            text-align: left;
+            font-weight: 600;
+        }
+        QPushButton#ConfigListButtonAdmin:hover { background: rgba(255,213,79,0.32); }
+        QPushButton#ConfigListButtonAdmin:pressed { background: rgba(255,213,79,0.4); }
         QScrollArea#ConfigListScroll {
             border: 1px solid #d6e2f6;
             border-radius: 14px;
@@ -960,6 +988,12 @@ def qss_tema_extra(modo: str) -> str:
         QLabel#ConfigDialogHint {
             color: #5e728f;
             font-size: 12px;
+        }
+        QLabel#ConfigEmptyLabel {
+            color: #7a889f;
+            font-style: italic;
+            padding: 12px 0;
+            text-align: center;
         }
         QTableWidget#ConfigDialogTable {
             background: #ffffff;
