@@ -840,11 +840,13 @@ def criar_usuario(*, username: str, senha: str, tipo: str = "USUARIO", api_key: 
     Aceita 'ADM' (legado) e normaliza para 'ADMINISTRADOR'.
     """
     # Normalização de tipo legado
+    tipo = (tipo or "").strip().upper()
     if tipo == "ADM":
         tipo = "ADMINISTRADOR"
     # Busca chaves do ambiente no momento do uso (sem hardcode nem globais)
-    key_user_env = os.getenv("REGISTRO_API_KEY_USUARIO") or os.getenv("REGISTRO_API_KEY")
-    key_admin_env = os.getenv("REGISTRO_API_KEY_ADMINISTRADOR") or os.getenv("REGISTRO_API_KEY_ADM")
+    api_key = (api_key or "").strip()
+    key_user_env = ((os.getenv("REGISTRO_API_KEY_USUARIO") or os.getenv("REGISTRO_API_KEY") or "").strip()) or None
+    key_admin_env = ((os.getenv("REGISTRO_API_KEY_ADMINISTRADOR") or os.getenv("REGISTRO_API_KEY_ADM") or "").strip()) or None
     if tipo == "ADMINISTRADOR":
         if not key_admin_env or api_key != key_admin_env:
             raise ValueError("API key inválida para registro ADMINISTRADOR")
